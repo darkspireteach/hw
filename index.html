@@ -58,7 +58,8 @@ input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge
 /* score strip */
 .student{border-bottom:1px solid var(--edge);padding:11px 0}
 .student:last-child{border-bottom:none}
-.strip{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:8px}
+.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:8px}
+.strip.six{grid-template-columns:repeat(6,1fr)}
 .chip{padding:14px 0;border-radius:10px;border:1px solid var(--edge);text-align:center;
   font-family:var(--mono);font-size:16px;font-weight:600;color:var(--muted)}
 .chip:active{background:var(--raised)}
@@ -95,6 +96,18 @@ input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge
 .tick i.done{background:var(--confirm)}
 .tick i.now{background:var(--ink)}
 
+.rv{background:var(--surface);border:1px solid var(--edge);border-radius:11px;padding:10px 11px;
+  display:flex;align-items:center;gap:9px;text-align:left;width:100%}
+.rv:active{background:var(--raised)}
+.rv .who{flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv .mk{font-family:var(--mono);font-size:16px;font-weight:700;width:30px;text-align:center;flex:none}
+.rv.good .mk{color:var(--confirm)} .rv.bad .mk{color:var(--flag)}
+.rv.none{border-color:var(--attention)} .rv.none .mk{color:var(--attention)}
+.rv.code .mk{color:var(--attention);font-size:13px}
+.tally{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tally span{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--muted);
+  border:1px solid var(--edge);border-radius:8px;padding:5px 9px}
+.tally span.warn{color:var(--attention);border-color:var(--attention)}
 .empty{text-align:center;color:var(--muted);padding:44px 20px;font-size:15px}
 .warnbox{background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.45);border-radius:12px;padding:13px;margin-bottom:12px}
 .back{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
@@ -107,7 +120,14 @@ input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge
 <div id="sheet"></div>
 
 <script>
-const SCORES=[5,4,3,2,1], CODES=['AB','MU','NC'];
+const SCORES=[5,4,3,2,1];
+const MARKS=[['5','complete','good'],['4','mostly complete','good'],
+             ['NC','not complete','bad'],['--','not checked','none']];
+const MORE=[['AB','absent today'],['MU','absent when assigned']];
+const OWED=['NC','AB','MU','--'];
+const ALL=MARKS.concat(MORE);
+const show=k=>k==='--'?'—':k;
+const nameOf=k=>(ALL.find(x=>x[0]===k)||[,''])[1];
 const ATT=[['✓','present'],['T','tardy'],['TE','excused tardy'],['TX','tardy = absent'],['AB','absent'],['LE','left early']];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -116,8 +136,8 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 let S=load(), V={view:'home'};
 
 function load(){
-  try{const r=localStorage.getItem('hwcheck');if(r)return JSON.parse(r)}catch(e){}
-  return {sections:[demo()]};
+  try{const r=localStorage.getItem('hwcheck');if(r){const o=JSON.parse(r);o.cfg=o.cfg||{};return o}}catch(e){}
+  return {sections:[demo()],cfg:{}};
 }
 function save(){try{localStorage.setItem('hwcheck',JSON.stringify(S))}catch(e){alert('Storage full — export your data.')}}
 
@@ -160,10 +180,48 @@ const mtg=()=>{const s=sec();return s&&s.meetings.find(m=>m.id===V.mid)};
 const stu=(s,id)=>s.students.find(x=>x.id===id);
 const label=st=>`${st.first} ${st.last}`.trim();
 
+/* Short names for the two-column grids: 7 letters of the first name plus
+   as much of the last name as it takes to stay unique in this section. */
+function cut(st,n){
+  const f=(st.first||'').trim().slice(0,7), l=(st.last||'').trim();
+  return (f+' '+l.slice(0,n)+(n<l.length?'.':'')).trim();
+}
+function dupes(students){
+  const by={},out=[];
+  students.forEach(st=>{
+    const k=((st.last||'')+'|'+(st.first||'')).trim().toLowerCase();
+    (by[k]=by[k]||[]).push(st);
+  });
+  Object.keys(by).forEach(k=>{if(by[k].length>1)out.push(by[k])});
+  return out;
+}
+function shortMap(s){
+  const len={}; s.students.forEach(st=>len[st.id]=1);
+  for(let pass=0;pass<12;pass++){
+    const by={};
+    // compare without the trailing period, so "Zimmerman" and "Zimmerman." don't
+    // count as distinct when they read identically on screen
+    s.students.forEach(st=>{
+      const k=((st.first||'').trim().slice(0,7)+' '+(st.last||'').trim().slice(0,len[st.id])).trim();
+      (by[k]=by[k]||[]).push(st);
+    });
+    let grew=false;
+    Object.keys(by).forEach(k=>{
+      if(by[k].length>1)by[k].forEach(st=>{
+        if(len[st.id]<(st.last||'').length){len[st.id]++;grew=true}
+      });
+    });
+    if(!grew)break;
+  }
+  const out={}; s.students.forEach(st=>out[st.id]=cut(st,len[st.id]));
+  return out;
+}
+
 /* open assignments: prior meetings where this student has no real score */
 function openFor(s,sid,exclude){
   return s.meetings.filter(m=>m.id!==exclude&&m.closed).filter(m=>{
-    const v=m.scores[sid]; return v&&(v.code==='AB'||v.code==='MU'||v.code==='NC')&&v.rev==null;
+    const v=m.scores[sid]||{};
+    return OWED.indexOf(v.code)>=0 && v.rev==null;
   });
 }
 function pendingExport(s){
@@ -182,6 +240,7 @@ function render(){
   if(v==='homework')return homework();
   if(v==='close')return closeOut();
   if(v==='export')return exportView();
+  if(v==='settings')return settings();
 }
 function head(title,eyebrow,back){
   return `<header>${back?`<button class="back" onclick="${back}">‹ Back</button>`:''}
@@ -194,17 +253,26 @@ function home(){
     const done=s.meetings.filter(m=>m.closed).length;
     const live=s.meetings.find(m=>!m.closed);
     const pend=pendingExport(s);
+    const un=unsynced(s).length;
     return `<button class="card tap" onclick="openSection('${s.id}')">
       <div class="row"><div class="grow">
         <div class="name trunc">${esc(s.name)}</div>
         <div class="meta">${s.students.length} students · ${s.tables.length} tables · ${done} meeting${done===1?'':'s'}</div>
-      </div>${live?'<span class="dot"></span>':''}</div>
+      </div>${live||un?'<span class="dot"></span>':''}</div>
       ${live?`<div class="open"><div class="meta">In progress — ${esc(live.title)}</div></div>`:''}
+      ${un?`<div class="open"><div class="meta">${un} meeting${un===1?'':'s'} not yet in the sheet</div></div>`:''}
+      ${dupes(s.students).length?`<div class="open"><div class="meta">Duplicate name in roster —
+        ${esc(dupes(s.students).map(g=>g[0].first+' '+g[0].last).join(', '))}</div></div>`:''}
       ${pend?`<div class="open"><div class="meta">${pend} revised score${pend===1?'':'s'} to send</div></div>`:''}
     </button>`}).join('');
-  $('app').innerHTML=head('Homework Check','sections')+
-    (S.sections.length?list:'<div class="empty">No sections yet.<br>Add one to get started.</div>');
-  bar(`<button class="btn ghost" onclick="go('add')">Add a section</button>`);
+  const stuck=S.sections.reduce((n,s)=>n+unsynced(s).length,0);
+  $('app').innerHTML=head('Homework Check','sections')+banner()+
+    (S.sections.length?list:'<div class="empty">No sections yet.<br>Add one to get started.</div>')+
+    (S.cfg.url?'':`<div class="warnbox"><div class="meta" style="color:var(--attention)">
+      Sheet sync not set up — scores stay on this phone until you connect it.</div></div>`);
+  bar((stuck?`<button class="btn" onclick="syncAll()">Send ${stuck} meeting${stuck===1?'':'s'} to the sheet</button>`:'')+
+      `<button class="btn ghost ${stuck?'sm':''}" onclick="go('add')">Add a section</button>
+       <button class="btn ghost sm" onclick="go('settings')">${S.cfg.url?'Sheet sync':'Connect your sheet'}</button>`);
 }
 
 function openSection(id){V.sid=id;const s=sec();
@@ -227,6 +295,12 @@ function startSheet(){
 function startMeeting(){
   const s=sec(),t=($('ttl').value||'HW').trim();
   const m={id:uid(),title:t,date:new Date().toISOString().slice(0,10),attendance:{},scores:{},attDone:false,closed:false};
+  // absent when this was assigned -> MU
+  const prev=s.meetings.filter(x=>x.closed).slice(-1)[0];
+  if(prev)s.students.forEach(st=>{
+    const a=prev.attendance[st.id];
+    if(a==='AB'||a==='TX')m.scores[st.id]={code:'MU',touched:true,auto:true};
+  });
   s.meetings.push(m);V.mid=m.id;V.table=0;save();go('attendance');
 }
 
@@ -252,12 +326,13 @@ function move(id,dir){
 /* ---------- attendance ---------- */
 function attendance(){
   const s=sec(),m=mtg();
+  const sm=shortMap(s);
   const cells=s.tables.flat().map(id=>{
     const st=stu(s,id),c=m.attendance[id]||'✓';
     const cls=c==='✓'?'':(c==='AB'||c==='TX'?'gone':'ex');
     const nm=(ATT.find(a=>a[0]===c)||[])[1]||'';
     return `<button class="att ${cls}" onclick="pickAtt('${id}')">
-      <div class="who">${esc(label(st))}</div><div class="code">${esc(c)} ${esc(nm)}</div></button>`}).join('');
+      <div class="who">${esc(sm[id])}</div><div class="code">${esc(c)} ${esc(nm)}</div></button>`}).join('');
   const ex=Object.values(m.attendance).filter(c=>c&&c!=='✓').length;
   $('app').innerHTML=head('Attendance',esc(m.title),'go("home")')+
     `<p class="sub">Everyone starts present. Tap only the exceptions.</p><div class="grid2">${cells}</div>`;
@@ -274,8 +349,8 @@ function pickAtt(id){
 function setAtt(id,c){const m=mtg();m.attendance[id]=c;save();render()}
 function attDone(){
   const m=mtg(),s=sec();
-  s.students.forEach(st=>{const c=m.attendance[st.id];
-    if(c==='AB'||c==='TX')m.scores[st.id]={code:'AB',touched:true,auto:true}});
+  s.students.forEach(st=>{const c=m.attendance[st.id],v=m.scores[st.id];
+    if((c==='AB'||c==='TX')&&(!v||v.auto))m.scores[st.id]={code:'AB',touched:true,auto:true}});
   m.attDone=true;save();V.table=0;go('homework');
 }
 
@@ -283,19 +358,20 @@ function attDone(){
 function homework(){
   const s=sec(),m=mtg(),t=s.tables[V.table]||[];
   const rows=t.map(id=>{
-    const st=stu(s,id),v=m.scores[id]||{},un=!v.touched;
+    const st=stu(s,id),v=m.scores[id]||{},cur=markOf(v)||'--',un=!v.touched;
     const opens=openFor(s,id,m.id);
-    const chip=(txt,on,extra,fn)=>`<button class="chip ${on?'on '+extra:''}" onclick="${fn}">${txt}</button>`;
+    const extra=MARKS.every(x=>x[0]!==cur);
+    const chip=(txt,on,cls,fn)=>`<button class="chip ${on?'on '+cls:''}" onclick="${fn}">${txt}</button>`;
     return `<div class="student ${un?'untouched':''}">
       <div class="row"><div class="grow"><div class="name trunc">${esc(label(st))}</div>
-        <div class="meta">${un?'not checked — defaults to 5':(v.code?'code '+esc(v.code):'scored '+v.val)}</div></div>
+        <div class="meta">${esc(nameOf(cur)||cur)}${v.auto?' · auto':''}</div></div>
         ${un?'<span class="dot"></span>':''}</div>
       <div class="strip">
-        ${SCORES.map(n=>chip(n,v.val===n,n<=2?'low':'',`setScore('${id}',${n})`)).join('')}
-        ${chip('•••',!!v.code,'code',`pickCode('${id}')`)}
+        ${MARKS.map(([k,,tone])=>chip(show(k),cur===k,tone==='bad'?'low':tone==='none'?'code':'',`setMark('${id}','${k}')`)).join('')}
+        ${chip(extra?cur:'•••',extra,'code',`pickCode('${id}')`)}
       </div>
       ${opens.map(o=>`<div class="open"><div class="row"><div class="grow">
-        <div class="meta">Still owes ${esc(o.title)} · ${esc(o.scores[id].code)}</div></div>
+        <div class="meta">${o.scores[id].code==='--'?'I never checked':'Still owes'} ${esc(o.title)}${o.scores[id].code==='--'?'':' · '+esc(o.scores[id].code)}</div></div>
         <button class="chip" style="width:78px" onclick="revise('${id}','${o.id}')">Score</button>
       </div></div>`).join('')}
     </div>`}).join('');
@@ -306,27 +382,31 @@ function homework(){
   bar(`<button class="btn" onclick="nextTable()">${last?'Finish class':'Next table'}</button>`+
       (V.table>0?`<button class="btn ghost sm" onclick="V.table--;render()">Previous table</button>`:''));
 }
-function setScore(id,n){const m=mtg();m.scores[id]={val:n,touched:true};save();render()}
+function setMark(id,k){
+  const m=mtg();
+  if(k==='--')delete m.scores[id];
+  else m.scores[id]=/^[0-9]$/.test(k)?{val:+k,touched:true}:{code:k,touched:true};
+  save();render();
+}
+function markOf(v){return v?(v.code||(v.val!=null?String(v.val):null)):null}
 function pickCode(id){
   const s=sec();
   $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
     <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))}</div>
-    ${CODES.map(c=>`<button class="btn ghost sm" style="text-align:left;padding-left:16px"
-      onclick="setCode('${id}','${c}')"><b style="font-family:var(--mono)">${c}</b> &nbsp;
-      ${c==='AB'?'absent today':c==='MU'?'absent when assigned':'not completed'}</button>`).join('')}
+    ${MORE.map(([c,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:16px"
+      onclick="setMark('${id}','${c}')"><b style="font-family:var(--mono)">${c}</b> &nbsp; ${n}</button>`).join('')}
     </div></div>`;
 }
-function setCode(id,c){const m=mtg();m.scores[id]={code:c,touched:true};save();render()}
 function revise(id,mid){
   const s=sec(),o=s.meetings.find(x=>x.id===mid);
   $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
     <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(o.title)}</div>
     <h1 style="margin:6px 0 12px">Revised score</h1>
-    <div class="strip">${SCORES.map(n=>`<button class="chip" onclick="setRev('${id}','${mid}',${n})">${n}</button>`).join('')}
+    <div class="strip">${['5','4','NC'].map(k=>`<button class="chip" onclick="setRev('${id}','${mid}','${k}')">${k}</button>`).join('')}
     <button class="chip" onclick="$('sheet').innerHTML=''">×</button></div>
     </div></div>`;
 }
-function setRev(id,mid,n){
+function setRev(id,mid,n){n=/^[0-9]$/.test(n)?+n:n;
   const s=sec(),o=s.meetings.find(x=>x.id===mid);
   o.scores[id]=Object.assign({},o.scores[id],{rev:n,sent:false});save();render();
 }
@@ -339,21 +419,39 @@ function nextTable(){
 /* ---------- close ---------- */
 function closeOut(){
   const s=sec(),m=mtg();
-  const un=s.students.filter(st=>!(m.scores[st.id]||{}).touched);
-  $('app').innerHTML=head('Finish class',esc(m.title),'go("homework")')+
-    (un.length?`<div class="warnbox"><div class="eyebrow" style="color:var(--attention)">Not checked</div>
-      <p style="margin:8px 0 0">${un.map(st=>esc(label(st))).join(', ')}</p>
-      <p class="meta" style="margin-top:10px">Closing now records these as 5. Go back if that's wrong.</p></div>`
-     :`<div class="card"><div class="name">All ${s.students.length} checked.</div></div>`)+
-    `<div class="card"><div class="meta">Absences and codes carry forward automatically. Anyone marked AB or MU
-      shows up as owing this assignment next time you reach their table.</div></div>`;
-  bar(`<button class="btn ${un.length?'warn':''}" onclick="finish()">Close ${esc(m.title)}</button>
-       <button class="btn ghost sm" onclick="go('homework')">Keep checking</button>`);
+  const tone=k=>k==='5'||k==='4'?'good':k==='NC'?'bad':k==='--'?'none':'code';
+  const sm=shortMap(s);
+  const cells=s.tables.flat().map(id=>{
+    const st=stu(s,id),v=m.scores[id]||{},k=markOf(v)||'--';
+    return `<button class="rv ${tone(k)}" onclick="pickAny('${id}')">
+      <span class="mk">${esc(show(k))}</span>
+      <span class="who">${esc(sm[id])}</span>
+      ${v.auto?'<span class="meta">auto</span>':''}</button>`}).join('');
+  const count={};s.students.forEach(st=>{const k=markOf(m.scores[st.id]||{})||'--';count[k]=(count[k]||0)+1});
+  const un=count['--']||0;
+  const tally=['5','4','NC','AB','MU'].filter(k=>count[k]).map(k=>`<span>${k} · ${count[k]}</span>`).join('')+
+    (un?`<span class="warn">not checked · ${un}</span>`:'');
+  $('app').innerHTML=head('Review',esc(m.title),'go("homework")')+
+    `<div class="tally">${tally}</div><div class="grid2">${cells}</div>`+
+    (un?`<div class="warnbox" style="margin-top:12px"><div class="meta" style="color:var(--attention)">
+      ${un} student${un===1?'':'s'} still unchecked. They stay blank and come back tomorrow —
+      no score gets invented.</div></div>`:'');
+  bar(`<button class="btn ${un?'warn':''}" onclick="finish()">Close ${esc(m.title)}</button>
+       <button class="btn ghost sm" onclick="go('homework')">Back to tables</button>`);
+}
+function pickAny(id){
+  const s=sec();
+  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
+    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))}</div>
+    ${ALL.map(([k,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:16px"
+      onclick="setMark('${id}','${k}');$('sheet').innerHTML=''"><b style="font-family:var(--mono)">${show(k)}</b>
+      &nbsp; ${n}</button>`).join('')}
+    </div></div>`;
 }
 function finish(){
   const s=sec(),m=mtg();
-  s.students.forEach(st=>{if(!(m.scores[st.id]||{}).touched)m.scores[st.id]={val:5,touched:true,defaulted:true}});
-  m.closed=true;save();go('export');
+  s.students.forEach(st=>{if(!(m.scores[st.id]||{}).touched)m.scores[st.id]={code:'--',missed:true}});
+  m.closed=true;save();go('export');syncSection(s.id,true);
 }
 
 /* ---------- export ---------- */
@@ -369,9 +467,13 @@ function exportView(){
   s.students.forEach(st=>att.push([st.last,st.first,...done.map(m=>m.attendance[st.id]||'✓')]));
   const atsv=att.map(r=>r.join('\t')).join('\n');
   const pend=pendingExport(s);
-  $('app').innerHTML=head('Export',esc(s.name),'go("home")')+
+  const un=unsynced(s).length;
+  $('app').innerHTML=head('Export',esc(s.name),'go("home")')+banner()+
+    (un?`<div class="card"><div class="name">${un} meeting${un===1?'':'s'} to send</div>
+      <button class="btn sm" onclick="syncSection('${s.id}')">Send to the sheet</button></div>`
+     :`<div class="card"><div class="meta" style="color:var(--confirm)">Everything is in the sheet.</div></div>`)+
     (pend?`<div class="warnbox"><div class="meta" style="color:var(--attention)">${pend} revised score${pend===1?'':'s'} not yet in Schoology</div></div>`:'')+
-    `<p class="sub">Copy, then paste into your gradebook tab. Scores and regrades land in alternating columns.</p>
+    `<p class="sub" style="margin-top:22px">Manual fallback — only needed if sync is down.</p>
      <textarea readonly id="tsv">${esc(tsv)}</textarea>
      <button class="btn sm" onclick="copy('tsv')">Copy homework</button>
      <p class="sub" style="margin-top:22px">Attendance</p>
@@ -405,7 +507,80 @@ function createSection(){
   if(!n||!raw.trim())return alert('Needs a name and at least one student.');
   const s=mkSection(n,raw);
   if(!s.students.length)return alert('No students found in that paste.');
+  const d=dupes(s.students);
+  if(d.length&&!V.dupOk){
+    V.dupOk=true;
+    return alert('Two students share a name: '+
+      d.map(g=>g[0].first+' '+g[0].last).join(', ')+
+      '.\n\nThey will look identical everywhere in the app. Add a middle initial to one '+
+      '(e.g. "Smith  Aiden J") and paste again — or tap Create again to keep them as is.');
+  }
+  V.dupOk=false;
   S.sections.push(s);save();V.sid=s.id;go('seats');
+}
+
+
+/* ---------- sync ---------- */
+function unsynced(s){return s.meetings.filter(m=>m.closed&&!m.synced)}
+
+async function syncSection(id,quiet){
+  const s=S.sections.find(x=>x.id===id), c=S.cfg;
+  if(!c.url||!c.token){V.sid=id;go('settings');return}
+  const pend=unsynced(s);
+  if(!pend.length){if(!quiet)alert('Nothing new to send.');return}
+  V.busy=`Sending ${pend.length} meeting${pend.length===1?'':'s'}…`;render();
+  const k=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
+  const byKey={}; s.students.forEach(st=>byKey[st.id]=k(st));
+  const payload={token:c.token,section:s.name,
+    students:s.students.map(st=>({last:st.last,first:st.first})),
+    meetings:pend.map(m=>{
+      const sc={},at={};
+      s.students.forEach(st=>{
+        const v=m.scores[st.id]; if(v)sc[byKey[st.id]]={val:v.val,code:v.code,rev:v.rev};
+        at[byKey[st.id]]=m.attendance[st.id]||'P';
+      });
+      return {title:m.title,date:m.date,scores:sc,attendance:at};
+    })};
+  try{
+    const r=await fetch(c.url,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(payload)});
+    const d=await r.json();
+    V.busy=null;
+    if(!d.ok){V.err=d.error||'Sheet refused the write.';render();return}
+    pend.forEach(m=>m.synced=true);
+    s.meetings.forEach(m=>Object.values(m.scores).forEach(v=>{if(v&&v.rev!=null)v.sent=true}));
+    V.err=null; V.ok=`${d.meetings} sent · ${d.matched} students`+
+      (d.unmatched&&d.unmatched.length?` · ${d.unmatched.length} name${d.unmatched.length===1?'':'s'} unmatched`:'');
+    save();render();
+  }catch(e){
+    V.busy=null; V.err='Could not reach the sheet. Scores are safe on this phone — try again on better wifi.';
+    render();
+  }
+}
+
+
+function banner(){
+  if(V.busy)return `<div class="warnbox"><div class="meta">${esc(V.busy)}</div></div>`;
+  if(V.err)return `<div class="warnbox" style="border-color:var(--flag)"><div class="meta" style="color:var(--flag)">${esc(V.err)}</div></div>`;
+  if(V.ok)return `<div class="card" style="border-color:var(--confirm)"><div class="meta" style="color:var(--confirm)">Synced — ${esc(V.ok)}</div></div>`;
+  return '';
+}
+async function syncAll(){for(const s of S.sections)if(unsynced(s).length)await syncSection(s.id,true)}
+
+function settings(){
+  const c=S.cfg;
+  $('app').innerHTML=head('Sheet sync','apps script','go("home")')+
+    `<p class="sub">Paste the web app URL and token from your Apps Script deployment.
+      These stay on this phone only.</p>
+     <input type="text" id="url" placeholder="https://script.google.com/macros/s/.../exec"
+       value="${esc(c.url||'')}" autocomplete="off"><div style="height:10px"></div>
+     <input type="text" id="tok" placeholder="Token" value="${esc(c.token||'')}" autocomplete="off">`;
+  bar(`<button class="btn" onclick="saveCfg()">Save</button>`);
+}
+function saveCfg(){
+  S.cfg={url:$('url').value.trim(),token:$('tok').value.trim()};save();
+  if(V.sid)syncSection(V.sid,true);else go('home');
 }
 
 function go(v){V.view=v;render();window.scrollTo(0,0)}
