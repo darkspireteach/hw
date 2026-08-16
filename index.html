@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#16202B">
+<title>Homework Check</title>
+<style>
+:root{
+  --ground:#16202B; --surface:#1F2C3A; --raised:#27384A; --edge:#33475C;
+  --ink:#E8EEF3; --muted:#8CA3B8;
+  --confirm:#4FB3A2; --attention:#E8A33D; --flag:#E0655B;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sys:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:var(--ground);color:var(--ink);font-family:var(--sys);
+  font-size:17px;line-height:1.4;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none;
+}
+#app{max-width:640px;margin:0 auto;padding:0 14px 120px}
+
+header{display:flex;align-items:baseline;gap:10px;padding:18px 2px 14px;position:sticky;top:0;background:var(--ground);z-index:5}
+h1{font-size:19px;font-weight:650;letter-spacing:-.2px;margin:0;flex:1}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.sub{color:var(--muted);font-size:14px;margin:-6px 2px 16px}
+
+button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--confirm);outline-offset:2px}
+
+.card{background:var(--surface);border:1px solid var(--edge);border-radius:14px;padding:14px;margin-bottom:10px}
+.card.tap{display:block;width:100%;text-align:left}
+.card.tap:active{background:var(--raised)}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.name{font-size:19px;font-weight:600;letter-spacing:-.2px}
+.meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.04em}
+
+.btn{display:block;width:100%;background:var(--confirm);color:#0C1A1E;font-weight:650;
+  padding:17px;border-radius:13px;text-align:center;font-size:17px;margin-top:8px}
+.btn:active{filter:brightness(.9)}
+.btn.ghost{background:none;border:1px solid var(--edge);color:var(--ink);font-weight:500}
+.btn.warn{background:var(--attention);color:#231603}
+.btn.sm{padding:12px;font-size:15px}
+
+textarea{width:100%;min-height:170px;background:var(--ground);border:1px solid var(--edge);
+  border-radius:11px;color:var(--ink);padding:12px;font-family:var(--mono);font-size:12.5px;
+  line-height:1.5;-webkit-user-select:text;user-select:text}
+input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge);border-radius:11px;
+  color:var(--ink);padding:14px;font-size:17px;-webkit-user-select:text;user-select:text}
+
+/* score strip */
+.student{border-bottom:1px solid var(--edge);padding:11px 0}
+.student:last-child{border-bottom:none}
+.strip{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:8px}
+.chip{padding:14px 0;border-radius:10px;border:1px solid var(--edge);text-align:center;
+  font-family:var(--mono);font-size:16px;font-weight:600;color:var(--muted)}
+.chip:active{background:var(--raised)}
+.chip.on{background:var(--confirm);border-color:var(--confirm);color:#0C1A1E}
+.chip.on.low{background:var(--flag);border-color:var(--flag);color:#2A0D0B}
+.chip.on.code{background:var(--attention);border-color:var(--attention);color:#231603}
+.untouched .name{color:var(--attention)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--attention);flex:none}
+
+.open{margin-top:8px;background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.4);
+  border-radius:10px;padding:9px 11px}
+.open .meta{color:var(--attention)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.att{background:var(--surface);border:1px solid var(--edge);border-radius:12px;padding:12px 11px;text-align:left}
+.att:active{background:var(--raised)}
+.att .who{font-size:15px;font-weight:600;letter-spacing:-.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att .code{font-family:var(--mono);font-size:12px;margin-top:3px;color:var(--confirm)}
+.att.ex{border-color:var(--attention)}
+.att.ex .code{color:var(--attention)}
+.att.gone{border-color:var(--flag)}
+.att.gone .code{color:var(--flag)}
+
+.bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--ground) 22%);
+  padding:22px 14px calc(14px + env(safe-area-inset-bottom));z-index:10}
+.bar .inner{max-width:640px;margin:0 auto}
+
+.sheet{position:fixed;inset:0;background:rgba(8,13,18,.7);z-index:50;display:flex;align-items:flex-end}
+.sheet .panel{background:var(--surface);border-top:1px solid var(--edge);border-radius:18px 18px 0 0;
+  padding:18px 14px calc(18px + env(safe-area-inset-bottom));width:100%;max-width:640px;margin:0 auto}
+
+.tick{display:flex;gap:5px;margin:0 0 14px;padding:0 2px}
+.tick i{height:3px;flex:1;background:var(--edge);border-radius:2px}
+.tick i.done{background:var(--confirm)}
+.tick i.now{background:var(--ink)}
+
+.empty{text-align:center;color:var(--muted);padding:44px 20px;font-size:15px}
+.warnbox{background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.45);border-radius:12px;padding:13px;margin-bottom:12px}
+.back{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+@media(prefers-reduced-motion:no-preference){.card,.att,.chip{transition:background .12s}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="bar"></div>
+<div id="sheet"></div>
+
+<script>
+const SCORES=[5,4,3,2,1], CODES=['AB','MU','NC'];
+const ATT=[['✓','present'],['T','tardy'],['TE','excused tardy'],['TX','tardy = absent'],['AB','absent'],['LE','left early']];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+
+let S=load(), V={view:'home'};
+
+function load(){
+  try{const r=localStorage.getItem('hwcheck');if(r)return JSON.parse(r)}catch(e){}
+  return {sections:[demo()]};
+}
+function save(){try{localStorage.setItem('hwcheck',JSON.stringify(S))}catch(e){alert('Storage full — export your data.')}}
+
+function demo(){
+  const raw=`Bohr	Niels
+Chandrasekhar	Subrahmanyan
+Curie	Marie
+Dirac	Paul
+Faraday	Michael
+Feynman	Richard
+Franklin	Rosalind
+Hawking	Stephen
+Heisenberg	Werner
+Hopper	Grace
+Joule	James
+Kepler	Johannes
+Lovelace	Ada
+Maxwell	James
+Newton	Isaac
+Noether	Emmy
+Payne	Cecilia
+Rutherford	Ernest
+Wu	Chien-Shiung`;
+  return mkSection('Sample class',raw);
+}
+
+function mkSection(name,raw){
+  const students=parseRoster(raw);
+  return {id:uid(),name,students,tables:chunk(students.map(x=>x.id),4),meetings:[]};
+}
+function parseRoster(raw){
+  return raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(line=>{
+    const p=line.split(/\t|\s*,\s*/);
+    return {id:uid(),last:(p[0]||'').trim(),first:(p[1]||'').trim(),extra:(p[2]||'').trim(),cubby:(p[3]||'').trim()};
+  }).filter(s=>s.last||s.first);
+}
+function chunk(a,n){return a.reduce((o,v,i)=>(i%n?o[o.length-1].push(v):o.push([v]),o),[])}
+const sec=()=>S.sections.find(x=>x.id===V.sid);
+const mtg=()=>{const s=sec();return s&&s.meetings.find(m=>m.id===V.mid)};
+const stu=(s,id)=>s.students.find(x=>x.id===id);
+const label=st=>`${st.first} ${st.last}`.trim();
+
+/* open assignments: prior meetings where this student has no real score */
+function openFor(s,sid,exclude){
+  return s.meetings.filter(m=>m.id!==exclude&&m.closed).filter(m=>{
+    const v=m.scores[sid]; return v&&(v.code==='AB'||v.code==='MU'||v.code==='NC')&&v.rev==null;
+  });
+}
+function pendingExport(s){
+  let n=0; s.meetings.forEach(m=>Object.values(m.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent)n++}));
+  return n;
+}
+
+/* ---------- render ---------- */
+function render(){
+  const v=V.view;
+  $('sheet').innerHTML='';
+  if(v==='home')return home();
+  if(v==='add')return addSection();
+  if(v==='seats')return seats();
+  if(v==='attendance')return attendance();
+  if(v==='homework')return homework();
+  if(v==='close')return closeOut();
+  if(v==='export')return exportView();
+}
+function head(title,eyebrow,back){
+  return `<header>${back?`<button class="back" onclick="${back}">‹ Back</button>`:''}
+    <h1>${esc(title)}</h1><span class="eyebrow">${esc(eyebrow||'')}</span></header>`;
+}
+function bar(html){$('bar').innerHTML=html?`<div class="bar"><div class="inner">${html}</div></div>`:''}
+
+function home(){
+  const list=S.sections.map(s=>{
+    const done=s.meetings.filter(m=>m.closed).length;
+    const live=s.meetings.find(m=>!m.closed);
+    const pend=pendingExport(s);
+    return `<button class="card tap" onclick="openSection('${s.id}')">
+      <div class="row"><div class="grow">
+        <div class="name trunc">${esc(s.name)}</div>
+        <div class="meta">${s.students.length} students · ${s.tables.length} tables · ${done} meeting${done===1?'':'s'}</div>
+      </div>${live?'<span class="dot"></span>':''}</div>
+      ${live?`<div class="open"><div class="meta">In progress — ${esc(live.title)}</div></div>`:''}
+      ${pend?`<div class="open"><div class="meta">${pend} revised score${pend===1?'':'s'} to send</div></div>`:''}
+    </button>`}).join('');
+  $('app').innerHTML=head('Homework Check','sections')+
+    (S.sections.length?list:'<div class="empty">No sections yet.<br>Add one to get started.</div>');
+  bar(`<button class="btn ghost" onclick="go('add')">Add a section</button>`);
+}
+
+function openSection(id){V.sid=id;const s=sec();
+  const live=s.meetings.find(m=>!m.closed);
+  if(live){V.mid=live.id;V.table=0;go(live.attDone?'homework':'attendance');return}
+  startSheet();
+}
+function startSheet(){
+  const s=sec(),n=s.meetings.filter(m=>m.closed).length+1;
+  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
+    <div class="panel">
+      <div class="eyebrow">${esc(s.name)} · meeting ${n}</div>
+      <h1 style="margin:6px 0 12px">Name this assignment</h1>
+      <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
+      <button class="btn" onclick="startMeeting()">Start class</button>
+      <button class="btn ghost sm" onclick="go('seats')">Arrange seating</button>
+      <button class="btn ghost sm" onclick="go('export')">Export to spreadsheet</button>
+    </div></div>`;
+}
+function startMeeting(){
+  const s=sec(),t=($('ttl').value||'HW').trim();
+  const m={id:uid(),title:t,date:new Date().toISOString().slice(0,10),attendance:{},scores:{},attDone:false,closed:false};
+  s.meetings.push(m);V.mid=m.id;V.table=0;save();go('attendance');
+}
+
+/* ---------- seating ---------- */
+function seats(){
+  const s=sec();
+  const body=s.tables.map((t,i)=>`<div class="card"><div class="eyebrow">Table ${i+1}</div>
+    ${t.map(id=>{const st=stu(s,id);return `<div class="student"><div class="row">
+      <div class="grow"><div class="name trunc">${esc(label(st))}</div></div>
+      <button class="chip" style="width:52px" onclick="move('${id}',-1)">↑</button>
+      <button class="chip" style="width:52px" onclick="move('${id}',1)">↓</button>
+    </div></div>`}).join('')}</div>`).join('');
+  $('app').innerHTML=head('Seating','tables of four','go("home")')+
+    `<p class="sub">Order these to match your walking route. Table 1 is where you start.</p>`+body;
+  bar(`<button class="btn" onclick="go('home')">Done</button>`);
+}
+function move(id,dir){
+  const s=sec();let flat=s.tables.flat();const i=flat.indexOf(id),j=i+dir;
+  if(j<0||j>=flat.length)return;
+  [flat[i],flat[j]]=[flat[j],flat[i]];s.tables=chunk(flat,4);save();render();
+}
+
+/* ---------- attendance ---------- */
+function attendance(){
+  const s=sec(),m=mtg();
+  const cells=s.tables.flat().map(id=>{
+    const st=stu(s,id),c=m.attendance[id]||'✓';
+    const cls=c==='✓'?'':(c==='AB'||c==='TX'?'gone':'ex');
+    const nm=(ATT.find(a=>a[0]===c)||[])[1]||'';
+    return `<button class="att ${cls}" onclick="pickAtt('${id}')">
+      <div class="who">${esc(label(st))}</div><div class="code">${esc(c)} ${esc(nm)}</div></button>`}).join('');
+  const ex=Object.values(m.attendance).filter(c=>c&&c!=='✓').length;
+  $('app').innerHTML=head('Attendance',esc(m.title),'go("home")')+
+    `<p class="sub">Everyone starts present. Tap only the exceptions.</p><div class="grid2">${cells}</div>`;
+  bar(`<button class="btn" onclick="attDone()">${ex} exception${ex===1?'':'s'} — start homework</button>`);
+}
+function pickAtt(id){
+  const s=sec();
+  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
+    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))}</div>
+    ${ATT.map(([c,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:16px"
+      onclick="setAtt('${id}','${c}')"><b style="font-family:var(--mono)">${c}</b> &nbsp; ${n}</button>`).join('')}
+    </div></div>`;
+}
+function setAtt(id,c){const m=mtg();m.attendance[id]=c;save();render()}
+function attDone(){
+  const m=mtg(),s=sec();
+  s.students.forEach(st=>{const c=m.attendance[st.id];
+    if(c==='AB'||c==='TX')m.scores[st.id]={code:'AB',touched:true,auto:true}});
+  m.attDone=true;save();V.table=0;go('homework');
+}
+
+/* ---------- homework ---------- */
+function homework(){
+  const s=sec(),m=mtg(),t=s.tables[V.table]||[];
+  const rows=t.map(id=>{
+    const st=stu(s,id),v=m.scores[id]||{},un=!v.touched;
+    const opens=openFor(s,id,m.id);
+    const chip=(txt,on,extra,fn)=>`<button class="chip ${on?'on '+extra:''}" onclick="${fn}">${txt}</button>`;
+    return `<div class="student ${un?'untouched':''}">
+      <div class="row"><div class="grow"><div class="name trunc">${esc(label(st))}</div>
+        <div class="meta">${un?'not checked — defaults to 5':(v.code?'code '+esc(v.code):'scored '+v.val)}</div></div>
+        ${un?'<span class="dot"></span>':''}</div>
+      <div class="strip">
+        ${SCORES.map(n=>chip(n,v.val===n,n<=2?'low':'',`setScore('${id}',${n})`)).join('')}
+        ${chip('•••',!!v.code,'code',`pickCode('${id}')`)}
+      </div>
+      ${opens.map(o=>`<div class="open"><div class="row"><div class="grow">
+        <div class="meta">Still owes ${esc(o.title)} · ${esc(o.scores[id].code)}</div></div>
+        <button class="chip" style="width:78px" onclick="revise('${id}','${o.id}')">Score</button>
+      </div></div>`).join('')}
+    </div>`}).join('');
+  const ticks=s.tables.map((_,i)=>`<i class="${i<V.table?'done':i===V.table?'now':''}"></i>`).join('');
+  $('app').innerHTML=head(`Table ${V.table+1}`,`of ${s.tables.length} · ${esc(m.title)}`,'go("attendance")')+
+    `<div class="tick">${ticks}</div><div class="card">${rows||'<div class="empty">Empty table.</div>'}</div>`;
+  const last=V.table>=s.tables.length-1;
+  bar(`<button class="btn" onclick="nextTable()">${last?'Finish class':'Next table'}</button>`+
+      (V.table>0?`<button class="btn ghost sm" onclick="V.table--;render()">Previous table</button>`:''));
+}
+function setScore(id,n){const m=mtg();m.scores[id]={val:n,touched:true};save();render()}
+function pickCode(id){
+  const s=sec();
+  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
+    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))}</div>
+    ${CODES.map(c=>`<button class="btn ghost sm" style="text-align:left;padding-left:16px"
+      onclick="setCode('${id}','${c}')"><b style="font-family:var(--mono)">${c}</b> &nbsp;
+      ${c==='AB'?'absent today':c==='MU'?'absent when assigned':'not completed'}</button>`).join('')}
+    </div></div>`;
+}
+function setCode(id,c){const m=mtg();m.scores[id]={code:c,touched:true};save();render()}
+function revise(id,mid){
+  const s=sec(),o=s.meetings.find(x=>x.id===mid);
+  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
+    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(o.title)}</div>
+    <h1 style="margin:6px 0 12px">Revised score</h1>
+    <div class="strip">${SCORES.map(n=>`<button class="chip" onclick="setRev('${id}','${mid}',${n})">${n}</button>`).join('')}
+    <button class="chip" onclick="$('sheet').innerHTML=''">×</button></div>
+    </div></div>`;
+}
+function setRev(id,mid,n){
+  const s=sec(),o=s.meetings.find(x=>x.id===mid);
+  o.scores[id]=Object.assign({},o.scores[id],{rev:n,sent:false});save();render();
+}
+function nextTable(){
+  const s=sec();
+  if(V.table<s.tables.length-1){V.table++;render();window.scrollTo(0,0);return}
+  go('close');
+}
+
+/* ---------- close ---------- */
+function closeOut(){
+  const s=sec(),m=mtg();
+  const un=s.students.filter(st=>!(m.scores[st.id]||{}).touched);
+  $('app').innerHTML=head('Finish class',esc(m.title),'go("homework")')+
+    (un.length?`<div class="warnbox"><div class="eyebrow" style="color:var(--attention)">Not checked</div>
+      <p style="margin:8px 0 0">${un.map(st=>esc(label(st))).join(', ')}</p>
+      <p class="meta" style="margin-top:10px">Closing now records these as 5. Go back if that's wrong.</p></div>`
+     :`<div class="card"><div class="name">All ${s.students.length} checked.</div></div>`)+
+    `<div class="card"><div class="meta">Absences and codes carry forward automatically. Anyone marked AB or MU
+      shows up as owing this assignment next time you reach their table.</div></div>`;
+  bar(`<button class="btn ${un.length?'warn':''}" onclick="finish()">Close ${esc(m.title)}</button>
+       <button class="btn ghost sm" onclick="go('homework')">Keep checking</button>`);
+}
+function finish(){
+  const s=sec(),m=mtg();
+  s.students.forEach(st=>{if(!(m.scores[st.id]||{}).touched)m.scores[st.id]={val:5,touched:true,defaulted:true}});
+  m.closed=true;save();go('export');
+}
+
+/* ---------- export ---------- */
+function exportView(){
+  const s=sec(),done=s.meetings.filter(m=>m.closed);
+  const rows=[['Last name','First name',...done.flatMap(m=>[m.title,'Regrade '+m.date])]];
+  s.students.forEach(st=>{
+    rows.push([st.last,st.first,...done.flatMap(m=>{
+      const v=m.scores[st.id]||{};return [v.code||v.val||'', v.rev??'']})]);
+  });
+  const tsv=rows.map(r=>r.join('\t')).join('\n');
+  const att=[['Last name','First name',...done.map(m=>m.date)]];
+  s.students.forEach(st=>att.push([st.last,st.first,...done.map(m=>m.attendance[st.id]||'✓')]));
+  const atsv=att.map(r=>r.join('\t')).join('\n');
+  const pend=pendingExport(s);
+  $('app').innerHTML=head('Export',esc(s.name),'go("home")')+
+    (pend?`<div class="warnbox"><div class="meta" style="color:var(--attention)">${pend} revised score${pend===1?'':'s'} not yet in Schoology</div></div>`:'')+
+    `<p class="sub">Copy, then paste into your gradebook tab. Scores and regrades land in alternating columns.</p>
+     <textarea readonly id="tsv">${esc(tsv)}</textarea>
+     <button class="btn sm" onclick="copy('tsv')">Copy homework</button>
+     <p class="sub" style="margin-top:22px">Attendance</p>
+     <textarea readonly id="atsv">${esc(atsv)}</textarea>
+     <button class="btn sm ghost" onclick="copy('atsv')">Copy attendance</button>
+     ${pend?`<button class="btn sm ghost" onclick="markSent()">Mark revisions as sent</button>`:''}`;
+  bar(`<button class="btn ghost" onclick="go('home')">Done</button>`);
+}
+function copy(id){
+  const el=$(id);el.select();el.setSelectionRange(0,999999);
+  navigator.clipboard?.writeText(el.value).catch(()=>document.execCommand('copy'));
+}
+function markSent(){
+  const s=sec();s.meetings.forEach(m=>Object.values(m.scores).forEach(v=>{if(v&&v.rev!=null)v.sent=true}));
+  save();render();
+}
+
+/* ---------- add section ---------- */
+function addSection(){
+  $('app').innerHTML=head('Add a section','roster','go("home")')+
+    `<p class="sub">Copy the name columns straight out of your gradebook tab and paste here.
+     One student per line: last name, first name, then any extra columns you want carried along.</p>
+     <input type="text" id="snm" placeholder="Section name, e.g. Period 3 Physics" autocomplete="off">
+     <div style="height:10px"></div>
+     <textarea id="raw" placeholder="Bohr	Niels
+Curie	Marie"></textarea>`;
+  bar(`<button class="btn" onclick="createSection()">Create section</button>`);
+}
+function createSection(){
+  const n=$('snm').value.trim(),raw=$('raw').value;
+  if(!n||!raw.trim())return alert('Needs a name and at least one student.');
+  const s=mkSection(n,raw);
+  if(!s.students.length)return alert('No students found in that paste.');
+  S.sections.push(s);save();V.sid=s.id;go('seats');
+}
+
+function go(v){V.view=v;render();window.scrollTo(0,0)}
+render();
+</script>
+</body>
+</html>
