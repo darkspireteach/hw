@@ -11,815 +11,867 @@
 :root{
   --ground:#16202B; --surface:#1F2C3A; --raised:#27384A; --edge:#33475C;
   --ink:#E8EEF3; --muted:#8CA3B8;
-  --confirm:#4FB3A2; --attention:#E8A33D; --flag:#E0655B;
+  --confirm:#4FB3A2; --attention:#E8A33D; --flag:#E0655B; --info:#5B8DEF;
   --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
   --sys:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
-body{
-  background:var(--ground);color:var(--ink);font-family:var(--sys);
-  font-size:17px;line-height:1.4;
+body{background:var(--ground);color:var(--ink);font-family:var(--sys);font-size:17px;line-height:1.4;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  -webkit-user-select:none;user-select:none;overscroll-behavior:none;
-}
-#app{max-width:640px;margin:0 auto;padding:0 14px 176px}
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+#app{max-width:640px;margin:0 auto;padding:0 12px 180px}
 
-header{display:flex;align-items:baseline;gap:10px;padding:18px 2px 14px;position:sticky;top:0;background:var(--ground);z-index:5}
+header{display:flex;align-items:baseline;gap:9px;padding:16px 2px 12px;position:sticky;top:0;background:var(--ground);z-index:5}
 h1{font-size:19px;font-weight:650;letter-spacing:-.2px;margin:0;flex:1}
-.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.sub{color:var(--muted);font-size:14px;margin:-6px 2px 16px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.sub{color:var(--muted);font-size:14px;margin:-4px 2px 14px}
+.back{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase}
+.cog{font-size:21px;color:var(--muted);padding:0 4px}
 
 button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
-button:focus-visible{outline:2px solid var(--confirm);outline-offset:2px}
-
-.card{background:var(--surface);border:1px solid var(--edge);border-radius:14px;padding:14px;margin-bottom:10px}
+.card{background:var(--surface);border:1px solid var(--edge);border-radius:14px;padding:13px;margin-bottom:9px}
 .card.tap{display:block;width:100%;text-align:left}
 .card.tap:active{background:var(--raised)}
-.row{display:flex;align-items:center;gap:10px}
+.row{display:flex;align-items:center;gap:9px}
 .grow{flex:1;min-width:0}
 .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.name{font-size:19px;font-weight:600;letter-spacing:-.2px}
-.meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.04em}
+.name{font-size:18px;font-weight:600;letter-spacing:-.2px}
+.meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em}
 
-.btn{display:block;width:100%;background:var(--confirm);color:#0C1A1E;font-weight:650;
-  padding:17px;border-radius:13px;text-align:center;font-size:17px;margin-top:8px}
+.btn{display:block;width:100%;background:var(--confirm);color:#0C1A1E;font-weight:650;padding:16px;
+  border-radius:13px;text-align:center;font-size:17px;margin-top:7px}
 .btn:active{filter:brightness(.9)}
 .btn.ghost{background:none;border:1px solid var(--edge);color:var(--ink);font-weight:500}
+.btn.sm{padding:11px;font-size:15px}
 .btn.warn{background:var(--attention);color:#231603}
-.btn.sm{padding:12px;font-size:15px}
+.btn.danger{color:var(--flag);border-color:var(--flag)}
 
-textarea{width:100%;min-height:170px;background:var(--ground);border:1px solid var(--edge);
-  border-radius:11px;color:var(--ink);padding:12px;font-family:var(--mono);font-size:12.5px;
-  line-height:1.5;-webkit-user-select:text;user-select:text}
-input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge);border-radius:11px;
-  color:var(--ink);padding:14px;font-size:17px;-webkit-user-select:text;user-select:text}
+textarea,input[type=text],input[type=date]{width:100%;background:var(--ground);border:1px solid var(--edge);
+  border-radius:11px;color:var(--ink);padding:13px;font-size:17px;-webkit-user-select:text;user-select:text}
+textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1.5}
 
-/* score strip */
-.student{border-bottom:1px solid var(--edge);padding:11px 0}
+.student{border-bottom:1px solid var(--edge);padding:10px 0}
 .student:last-child{border-bottom:none}
-.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:8px}
-.strip.six{grid-template-columns:repeat(6,1fr)}
+.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:7px}
 .strip.four{grid-template-columns:repeat(4,1fr)}
-.chip.quiet{color:var(--muted);font-size:13px}
-.chip.dash{flex:none;width:46px;padding:9px 0;font-size:15px}
+.strip.six{grid-template-columns:repeat(6,1fr)}
 .chip{padding:14px 0;border-radius:10px;border:1px solid var(--edge);text-align:center;
   font-family:var(--mono);font-size:16px;font-weight:600;color:var(--muted)}
 .chip:active{background:var(--raised)}
 .chip.on{background:var(--confirm);border-color:var(--confirm);color:#0C1A1E}
 .chip.on.low{background:var(--flag);border-color:var(--flag);color:#2A0D0B}
-.chip.on.code{background:var(--attention);border-color:var(--attention);color:#231603}
+.chip.on.info{background:var(--info);border-color:var(--info);color:#08152E}
+.chip.on.warn{background:var(--attention);border-color:var(--attention);color:#231603}
+.chip.quiet{color:var(--muted);font-size:13px}
+.chip.dash{flex:none;width:48px;padding:9px 0;font-size:15px}
 .untouched .name{color:var(--attention)}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--attention);flex:none}
 
-.open{margin-top:8px;background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.4);
-  border-radius:10px;padding:9px 11px}
-.open .meta{color:var(--attention)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 14px}
+.tab{padding:15px 0;border-radius:11px;border:1px solid var(--edge);text-align:center;
+  font-family:var(--mono);font-size:19px;font-weight:700;color:var(--muted)}
+.tab.todo{border-color:var(--attention);color:var(--attention)}
+.tab.done{color:var(--confirm);border-color:var(--edge)}
+.tab.now{background:var(--raised);color:var(--ink);border-color:var(--ink)}
+.tab.empty{opacity:.32}
 
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.att{background:var(--surface);border:1px solid var(--edge);border-radius:12px;padding:12px 11px;text-align:left}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.att{background:var(--surface);border:1px solid var(--edge);border-radius:12px;padding:11px 10px;text-align:left}
 .att:active{background:var(--raised)}
-.att .who{font-size:15px;font-weight:600;letter-spacing:-.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.att .code{font-family:var(--mono);font-size:12px;margin-top:3px;color:var(--confirm)}
-.att.ex{border-color:var(--attention)}
-.att.ex .code{color:var(--attention)}
-.att.gone{border-color:var(--flag)}
-.att.gone .code{color:var(--flag)}
+.att .who{font-size:15px;font-weight:600;letter-spacing:-.15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att .code{font-family:var(--mono);font-size:11.5px;margin-top:2px;color:var(--confirm)}
+.att.ex{border-color:var(--attention)} .att.ex .code{color:var(--attention)}
+.att.gone{border-color:var(--flag)} .att.gone .code{color:var(--flag)}
+
+.rv{background:var(--surface);border:1px solid var(--edge);border-radius:11px;padding:10px;
+  display:flex;align-items:center;gap:8px;text-align:left;width:100%}
+.rv:active{background:var(--raised)}
+.rv .who{flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv .mk{font-family:var(--mono);font-size:15px;font-weight:700;width:32px;text-align:center;flex:none}
+.rv.good .mk{color:var(--confirm)} .rv.bad .mk{color:var(--flag)}
+.rv.info .mk{color:var(--info)} .rv.none{border-color:var(--attention)} .rv.none .mk{color:var(--attention)}
+.slot{background:var(--ground);border:1px dashed var(--edge);border-radius:9px;padding:9px 8px;
+  font-size:13px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:38px}
+.slot.full{background:var(--surface);border-style:solid}
+
+.tally{display:flex;gap:5px;margin-bottom:11px;flex-wrap:wrap}
+.tally span{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--muted);
+  border:1px solid var(--edge);border-radius:8px;padding:5px 9px}
+.tally span.warn{color:var(--attention);border-color:var(--attention)}
+.warnbox{background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.45);border-radius:12px;padding:12px;margin-bottom:11px}
+.okbox{border:1px solid var(--confirm);border-radius:12px;padding:12px;margin-bottom:11px}
+.empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:15px}
 
 .bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--ground) 20%);
   padding:20px 12px calc(4px + env(safe-area-inset-bottom));z-index:10}
-.bar .btn{margin-top:6px}
-.bar .grid2{gap:6px;margin-top:6px}
-.bar .grid2 .btn{margin-top:0}
 .bar .inner{max-width:640px;margin:0 auto}
-
-.sheet{position:fixed;inset:0;background:rgba(8,13,18,.7);z-index:50;display:flex;align-items:flex-end}
+.bar .btn{margin-top:6px} .bar .grid2{gap:6px;margin-top:6px} .bar .grid2 .btn{margin-top:0}
+.sheet{position:fixed;inset:0;background:rgba(8,13,18,.72);z-index:50;display:flex;align-items:flex-end}
 .sheet .panel{background:var(--surface);border-top:1px solid var(--edge);border-radius:18px 18px 0 0;
-  padding:18px 14px calc(18px + env(safe-area-inset-bottom));width:100%;max-width:640px;margin:0 auto}
-
-.tick{display:flex;gap:5px;margin:0 0 14px;padding:0 2px}
-.tick i{height:3px;flex:1;background:var(--edge);border-radius:2px}
-.tick i.done{background:var(--confirm)}
-.tick i.now{background:var(--ink)}
-
-.rv{background:var(--surface);border:1px solid var(--edge);border-radius:11px;padding:10px 11px;
-  display:flex;align-items:center;gap:9px;text-align:left;width:100%}
-.rv:active{background:var(--raised)}
-.rv .who{flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rv .mk{font-family:var(--mono);font-size:16px;font-weight:700;width:30px;text-align:center;flex:none}
-.rv.good .mk{color:var(--confirm)} .rv.bad .mk{color:var(--flag)}
-.rv.none{border-color:var(--attention)} .rv.none .mk{color:var(--attention)}
-.rv.code .mk{color:var(--attention);font-size:13px}
-.tally{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
-.tally span{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--muted);
-  border:1px solid var(--edge);border-radius:8px;padding:5px 9px}
-.tally span.warn{color:var(--attention);border-color:var(--attention)}
-.empty{text-align:center;color:var(--muted);padding:44px 20px;font-size:15px}
-.warnbox{background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.45);border-radius:12px;padding:13px;margin-bottom:12px}
-.back{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
-@media(prefers-reduced-motion:no-preference){.card,.att,.chip{transition:background .12s}}
+  padding:16px 12px calc(16px + env(safe-area-inset-bottom));width:100%;max-width:640px;margin:0 auto;
+  max-height:86vh;overflow:auto}
 </style>
 </head>
 <body>
-<div id="app"></div>
-<div id="bar"></div>
-<div id="sheet"></div>
-
+<div id="app"></div><div id="bar"></div><div id="sheet"></div>
 <script>
-const SCORES=[5,4,3,2,1];
+/* ============ constants ============ */
 const MARKS=[['5','complete','good'],['4','mostly complete','good'],
-             ['NC','not complete','bad'],['MU','absent when assigned','code'],
-             ['AB','absent today','code']];
-const MORE=[['--','not checked','none']];
-/* Only absence-caused gaps and my own misses come back at the table.
-   NC makeups go through the turn-in box and straight into Schoology.
-   An owed item stays live for CARRY meetings, then drops off quietly. */
-const OWED=['AB','MU','--'];
-const CARRY=2;
-const ALL=MARKS.concat(MORE);
-const show=k=>k==='--'?'—':k;
-const nameOf=k=>(ALL.find(x=>x[0]===k)||[,''])[1];
-const ATT=[['AB','absent'],['TX','tardy — counts absent'],['TE','excused tardy'],['✓','present']];
+             ['NC','not complete','bad'],['MU','absent when assigned','info'],
+             ['AB','absent today','info']];
+const DASH=['--','not checked','warn'];
+const ALL=MARKS.concat([DASH]);
+const ATT=[['AB','absent'],['T','tardy'],['TE','excused tardy'],['TX','excessive tardy'],['P','present']];
+const ABSENT=['AB','TX'];              // these fill a homework AB
+const TABLEQ=['AB','MU','--'];         // interrupts you at the table
+const OPEN=['NC','AB','MU','--'];      // counts as owed in records & late work
+const CARRY=2;                         // table interruptions expire after this many assignments
+const TABLES=6, SEATS=4;
+const DAYS=['Su','M','T','W','Th','F','Sa'];
+
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid=()=>Math.random().toString(36).slice(2,9);
+const show=k=>k==='--'?'—':k;
+const nameOf=k=>(ALL.find(x=>x[0]===k)||[,''])[1]||k;
+const toneOf=k=>(ALL.find(x=>x[0]===k)||[,,''])[2]||'';
 
+/* Local dates throughout — toISOString() is UTC and rolls a US evening into tomorrow. */
+function today(){const d=new Date();return iso(d.getFullYear(),d.getMonth()+1,d.getDate())}
+function iso(y,m,d){return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+function when(s){
+  const p=String(s||'').split('-').map(Number);
+  if(p.length<3||!p[0])return String(s||'');
+  return DAYS[new Date(p[0],p[1]-1,p[2]).getDay()]+' '+String(p[1]).padStart(2,'0')+'-'+String(p[2]).padStart(2,'0');
+}
+
+/* ============ state ============ */
 let S=load(), V={view:'home'};
 
+/* Each class is stored under its own key. A tap rewrites only the class you are
+   in — a whole year in one blob meant re-serializing ~1MB on every button press. */
 function load(){
-  try{const r=localStorage.getItem('hwcheck');if(r){const o=JSON.parse(r);o.cfg=o.cfg||{};return o}}catch(e){}
-  return {sections:[demo()],cfg:{}};
+  let cfg={},sections=[];
+  try{
+    const idx=JSON.parse(localStorage.getItem('hw:index')||'null');
+    if(Array.isArray(idx)&&idx.length){
+      cfg=JSON.parse(localStorage.getItem('hw:cfg')||'{}')||{};
+      sections=idx.map(id=>{try{return JSON.parse(localStorage.getItem('hw:s:'+id))}catch(e){return null}}).filter(Boolean);
+    }else{
+      const legacy=localStorage.getItem('hwcheck');       // one-time move from the old key
+      if(legacy){const o=JSON.parse(legacy)||{};cfg=o.cfg||{};sections=o.sections||[]}
+    }
+  }catch(e){}
+  if(!sections.length)sections=[demo()];
+  sections.forEach(migrate);
+  return {sections,cfg};
 }
-function save(){try{localStorage.setItem('hwcheck',JSON.stringify(S))}catch(e){alert('Storage full — export your data.')}}
+function save(all){
+  try{
+    localStorage.setItem('hw:index',JSON.stringify(S.sections.map(s=>s.id)));
+    localStorage.setItem('hw:cfg',JSON.stringify(S.cfg));
+    const list=(all||!V.sid)?S.sections:S.sections.filter(s=>s.id===V.sid);
+    list.forEach(s=>localStorage.setItem('hw:s:'+s.id,JSON.stringify(s)));
+    localStorage.removeItem('hwcheck');
+  }catch(e){alert('Storage full — take a backup, then delete an old class.')}
+}
+function saveAll(){save(true)}
+function forget(id){try{localStorage.removeItem('hw:s:'+id)}catch(e){}}
+
+/* Old builds stored one "meeting" holding attendance and scores together.
+   Split each into a session and an assignment so nothing is lost. */
+function migrate(s){
+  if(!s.items){
+    s.items=[];
+    (s.meetings||[]).forEach(m=>{
+      if(m.attendance)s.items.push({id:uid(),kind:'session',date:m.date,
+        attendance:m.attendance,closed:!!m.closed,synced:!!m.synced});
+      s.items.push({id:m.id||uid(),kind:'hw',title:m.title,date:m.date,
+        scores:m.scores||{},closed:!!m.closed,synced:!!m.synced});
+    });
+    delete s.meetings;
+  }
+  s.students=s.students||[];
+  s.tables=padTables(s.tables);
+}
+function padTables(t){
+  const flat=(t||[]).flat().filter(Boolean);
+  const out=[];
+  for(let i=0;i<TABLES;i++){
+    const row=((t||[])[i]||[]).slice(0,SEATS);
+    while(row.length<SEATS)row.push(null);
+    out.push(row);
+  }
+  // anything that fell outside 6x4 goes into the first free seats
+  flat.forEach(id=>{if(!out.flat().includes(id))place(out,id)});
+  return out;
+}
+function place(tables,id){
+  for(let t=0;t<TABLES;t++)for(let k=0;k<SEATS;k++)if(!tables[t][k]){tables[t][k]=id;return true}
+  return false;
+}
 
 function demo(){
-  const raw=`Bohr	Niels
-Chandrasekhar	Subrahmanyan
-Curie	Marie
-Dirac	Paul
-Faraday	Michael
-Feynman	Richard
-Franklin	Rosalind
-Hawking	Stephen
-Heisenberg	Werner
-Hopper	Grace
-Joule	James
-Kepler	Johannes
-Lovelace	Ada
-Maxwell	James
-Newton	Isaac
-Noether	Emmy
-Payne	Cecilia
-Rutherford	Ernest
-Wu	Chien-Shiung`;
+  const raw=`Bohr\tNiels
+Chandrasekhar\tSubrahmanyan
+Curie\tMarie
+Dirac\tPaul
+Faraday\tMichael
+Feynman\tRichard
+Franklin\tRosalind
+Hawking\tStephen
+Heisenberg\tWerner
+Hopper\tGrace
+Joule\tJames
+Kepler\tJohannes
+Lovelace\tAda
+Maxwell\tJames
+Newton\tIsaac
+Noether\tEmmy
+Payne\tCecilia
+Rutherford\tErnest
+Wu\tChien-Shiung`;
   return mkSection('Sample class',raw);
 }
-
 function mkSection(name,raw){
   const students=parseRoster(raw);
-  return {id:uid(),name,students,tables:chunk(students.map(x=>x.id),4),meetings:[]};
+  const tables=padTables([]);
+  students.forEach(st=>place(tables,st.id));
+  return {id:uid(),name,students,tables,items:[]};
 }
 function parseRoster(raw){
-  return raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(line=>{
+  return String(raw||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(line=>{
     const p=line.split(/\t|\s*,\s*/);
-    return {id:uid(),last:(p[0]||'').trim(),first:(p[1]||'').trim(),extra:(p[2]||'').trim(),cubby:(p[3]||'').trim()};
+    return {id:uid(),last:(p[0]||'').trim(),first:(p[1]||'').trim(),
+            extra:(p[2]||'').trim(),cubby:(p[3]||'').trim()};
   }).filter(s=>s.last||s.first);
 }
-function chunk(a,n){return a.reduce((o,v,i)=>(i%n?o[o.length-1].push(v):o.push([v]),o),[])}
-const sec=()=>S.sections.find(x=>x.id===V.sid);
-const act=s=>s.students.filter(st=>!st.out);        // enrolled now
-const gone=s=>s.students.filter(st=>st.out);        // archived, history kept
-function reseat(s){
-  const live=act(s).map(st=>st.id);
-  const order=s.tables.flat().filter(id=>live.indexOf(id)>=0);
-  live.forEach(id=>{if(order.indexOf(id)<0)order.push(id)});
-  s.tables=chunk(order,4);
-}
-const mtg=()=>{const s=sec();return s&&s.meetings.find(m=>m.id===V.mid)};
-const stu=(s,id)=>s.students.find(x=>x.id===id);
-const label=st=>`${st.first} ${st.last}`.trim();
 
-/* Short names for the two-column grids: 7 letters of the first name plus
-   as much of the last name as it takes to stay unique in this section. */
-function cut(st,n,lf){
-  const f=(st.first||'').trim(), l=(st.last||'').trim();
-  return lf
-    ? (l+', '+f.slice(0,n)+(n<f.length?'.':'')).trim()   // Curie, M.  — for A–Z lists
-    : (f.slice(0,7)+' '+l.slice(0,n)+(n<l.length?'.':'')).trim();  // Marie C.
-}
-function dupes(students){
-  const by={},out=[];
-  students.forEach(st=>{
-    const k=((st.last||'')+'|'+(st.first||'')).trim().toLowerCase();
-    (by[k]=by[k]||[]).push(st);
+/* ============ lookups ============ */
+const sec=()=>S.sections.find(x=>x.id===V.sid);
+const item=()=>{const s=sec();return s&&s.items.find(x=>x.id===V.iid)};
+const stu=(s,id)=>s.students.find(x=>x.id===id);
+const act=s=>s.students.filter(st=>!st.out);
+const gone=s=>s.students.filter(st=>st.out);
+const label=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
+const hws=s=>s.items.filter(x=>x.kind==='hw');
+const sessions=s=>s.items.filter(x=>x.kind==='session');
+const sessionOn=(s,d)=>sessions(s).filter(x=>x.date===d).slice(-1)[0];
+const hwsOn=(s,d)=>hws(s).filter(x=>x.date===d);
+const markOf=v=>v?(v.code||(v.val!=null?String(v.val):null)):null;
+const unsynced=s=>s.items.filter(x=>x.closed&&!x.synced);
+const seatedIds=s=>s.tables.flat().filter(Boolean);
+const unseated=s=>act(s).filter(st=>!seatedIds(s).includes(st.id));
+const tableIds=(s,i)=>s.tables[i].filter(Boolean).filter(id=>{const st=stu(s,id);return st&&!st.out});
+
+/* what a student still owes — no expiry, NC included */
+function closedHws(s){return hws(s).filter(h=>h.closed)}
+function openList(s,id){
+  const st=stu(s,id),from=(st&&st.from)||0;
+  // index against closed assignments only — an unfinished one in the middle
+  // used to shift the enrolment cutoff and chase joiners for work predating them
+  return closedHws(s).filter((h,i)=>{
+    if(i<from)return false;
+    const v=h.scores[id]||{};
+    return OPEN.includes(v.code)&&v.rev==null;
   });
+}
+/* One pass over the class: assignment id -> students who still owe it.
+   Late work and the class screen both needed this per-student, which was
+   O(assignments x students) on every render. */
+function owedIndex(s){
+  const out={},roster=act(s);
+  roster.forEach(st=>openList(s,st.id).forEach(h=>{(out[h.id]=out[h.id]||[]).push(st)}));
+  return out;
+}
+/* what interrupts you at the table — expires, NC excluded */
+function tableQueue(s,id,exclude){
+  const closed=hws(s).filter(h=>h.closed&&h.id!==exclude), n=closed.length;
+  return closed.filter((h,i)=>{
+    if(n-1-i>=CARRY)return false;
+    const v=h.scores[id]||{};
+    return TABLEQ.includes(v.code)&&v.rev==null;
+  });
+}
+function pendingSend(s){
+  let n=0;hws(s).forEach(h=>Object.values(h.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent)n++}));
+  return n;
+}
+function dupes(list){
+  const by={},out=[];
+  list.forEach(st=>{const k=((st.last||'')+'|'+(st.first||'')).trim().toLowerCase();(by[k]=by[k]||[]).push(st)});
   Object.keys(by).forEach(k=>{if(by[k].length>1)out.push(by[k])});
   return out;
 }
-function shortMap(s,lf){
-  const grow=st=>((lf?st.first:st.last)||'').length;
-  const len={}; s.students.forEach(st=>len[st.id]=1);
-  for(let pass=0;pass<12;pass++){
-    const by={};
-    // compare without the trailing period, so "Zimmerman" and "Zimmerman." don't
-    // count as distinct when they read identically on screen
-    s.students.forEach(st=>{
-      const f=(st.first||'').trim(), l=(st.last||'').trim();
-      const k=lf?(l+', '+f.slice(0,len[st.id])):(f.slice(0,7)+' '+l.slice(0,len[st.id]));
-      (by[k.trim()]=by[k.trim()]||[]).push(st);
-    });
-    let grew=false;
-    Object.keys(by).forEach(k=>{
-      if(by[k].length>1)by[k].forEach(st=>{
-        if(len[st.id]<grow(st)){len[st.id]++;grew=true}
-      });
-    });
-    if(!grew)break;
-  }
-  const out={}; s.students.forEach(st=>out[st.id]=cut(st,len[st.id],lf));
-  return out;
-}
 
-/* open assignments: prior meetings where this student has no real score */
-function openFor(s,sid,exclude){
-  const closed=s.meetings.filter(m=>m.closed&&m.id!==exclude);
-  const n=closed.length;
-  return closed.filter((m,i)=>{
-    if(n-1-i>=CARRY)return false;            // older than CARRY meetings: expired
-    const v=m.scores[sid]||{};
-    return OWED.indexOf(v.code)>=0 && v.rev==null;
-  });
-}
-function pendingExport(s){
-  let n=0; s.meetings.forEach(m=>Object.values(m.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent)n++}));
-  return n;
-}
-
-/* ---------- render ---------- */
-function render(){
-  const v=V.view;
-  $('sheet').innerHTML='';
-  if(v==='home')return home();
-  if(v==='add')return addSection();
-  if(v==='seats')return seats();
-  if(v==='attendance')return attendance();
-  if(v==='homework')return homework();
-  if(v==='close')return closeOut();
-  if(v==='export')return exportView();
-  if(v==='settings')return settings();
-  if(v==='people')return people();
-  if(v==='roster')return roster();
-  if(v==='history')return history();
-}
-function head(title,eyebrow,back,label){
-  return `<header>${back?`<button class="back" onclick="${back}">‹ ${esc(label||'Back')}</button>`:''}
-    <h1>${esc(title)}</h1><span class="eyebrow">${esc(eyebrow||'')}</span></header>`;
+/* ============ chrome ============ */
+function head(title,eyebrow,back,lbl,right){
+  return `<header>${back?`<button class="back" onclick="${back}">‹ ${esc(lbl||'Back')}</button>`:''}
+    <h1>${esc(title)}</h1><span class="eyebrow">${esc(eyebrow||'')}</span>
+    ${right||''}</header>`;
 }
 function bar(html){$('bar').innerHTML=html?`<div class="bar"><div class="inner">${html}</div></div>`:''}
-
-function home(){
-  const list=S.sections.map(s=>{
-    const done=s.meetings.filter(m=>m.closed).length;
-    const live=s.meetings.find(m=>!m.closed);
-    const pend=pendingExport(s);
-    const un=unsynced(s).length;
-    return `<button class="card tap" onclick="openSection('${s.id}')">
-      <div class="row"><div class="grow">
-        <div class="name trunc">${esc(s.name)}</div>
-        <div class="meta">${act(s).length} students · ${s.tables.length} tables · ${done} meeting${done===1?'':'s'}</div>
-      </div>${live||un?'<span class="dot"></span>':''}</div>
-      ${live?`<div class="open"><div class="meta">In progress — ${esc(live.title)}${live.noAtt?' · no attendance':''}</div></div>`:''}
-      ${un?`<div class="open"><div class="meta">${un} meeting${un===1?'':'s'} not yet in the sheet</div></div>`:''}
-      ${dupes(s.students).length?`<div class="open"><div class="meta">Duplicate name in roster —
-        ${esc(dupes(s.students).map(g=>g[0].first+' '+g[0].last).join(', '))}</div></div>`:''}
-      ${pend?`<div class="open"><div class="meta">${pend} revised score${pend===1?'':'s'} to send</div></div>`:''}
-    </button>`}).join('');
-  const stuck=S.sections.reduce((n,s)=>n+unsynced(s).length,0);
-  $('app').innerHTML=head('Homework Check','sections')+banner()+
-    (S.sections.length?list:'<div class="empty">No sections yet.<br>Add one to get started.</div>')+
-    (S.cfg.url?'':`<div class="warnbox"><div class="meta" style="color:var(--attention)">
-      Sheet sync not set up — scores stay on this phone until you connect it.</div></div>`);
-  bar((stuck?`<button class="btn" onclick="syncAll()">Send ${stuck} meeting${stuck===1?'':'s'} to the sheet</button>`:'')+
-      `<button class="btn ghost ${stuck?'sm':''}" onclick="go('add')">Add a section</button>
-       <div class="grid2">
-         <button class="btn ghost sm" onclick="go('settings')">${S.cfg.url?'Sheet sync':'Connect your sheet'}</button>
-         <button class="btn ghost sm" onclick="V.sid=V.sid||(S.sections[0]||{}).id;go('export')">Backup</button>
-       </div>`);
-}
-
-function openSection(id){V.sid=id;const s=sec();
-  const live=s.meetings.find(m=>!m.closed);
-  if(live){V.mid=live.id;V.table=0;
-    if(live.noAtt){V.stack=true;V.az=true;go('close')}
-    else go(live.attDone?'homework':'attendance');
-    return}
-  startSheet();
-}
-function startSheet(){
-  const s=sec(),n=s.meetings.filter(m=>m.closed).length+1;
-  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
-    <div class="panel">
-      <div class="eyebrow">${esc(s.name)} · meeting ${n}</div>
-      <h1 style="margin:6px 0 12px">Name this assignment</h1>
-      <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
-      <button class="btn" onclick="startMeeting()">Start class — attendance first</button>
-      <button class="btn ghost" onclick="startMeeting(true)">Score this only — no attendance</button>
-      ${(()=>{const p=lastClosed(s);return p?`<button class="btn ghost" onclick="reopen()">
-        Reopen ${esc(p.title)}${p.date===new Date().toISOString().slice(0,10)?'':' · '+esc(p.date)}</button>`:''})()}
-      <button class="btn ghost sm" onclick="go('people')">Student records</button>
-      <button class="btn ghost sm" onclick="go('seats')">Arrange seating</button>
-      <button class="btn ghost sm" onclick="go('export')">Backup &amp; export</button>
-      <button class="btn ghost sm" onclick="go('roster')">Roster — add or remove</button>
-    </div></div>`;
-}
-function lastClosed(s){return s.meetings.filter(x=>x.closed).slice(-1)[0]}
-function reopen(){
-  const s=sec(),m=lastClosed(s);
-  if(!m)return;
-  m.closed=false;
-  m.synced=false;          // whatever changes now has to reach the sheet again
-  V.mid=m.id;V.table=0;save();
-  if(m.noAtt){V.stack=true;V.az=true;go('close')}
-  else{V.stack=false;go('attendance')}   // land where the late arrival gets fixed
-}
-function startMeeting(noAtt){
-  const s=sec(),t=($('ttl').value||'HW').trim();
-  const today=new Date().toISOString().slice(0,10);
-  const m={id:uid(),title:t,date:today,scores:{},closed:false,
-           noAtt:!!noAtt, attendance:noAtt?null:{}, attDone:!!noAtt};
-  if(noAtt){
-    // a second assignment the same day inherits today's absences
-    const sess=s.meetings.filter(x=>x.attendance&&x.date===today).slice(-1)[0];
-    if(sess)act(s).forEach(st=>{
-      const a=sess.attendance[st.id];
-      if(a==='AB'||a==='TX')m.scores[st.id]={code:'AB',touched:true,auto:true};
-    });
-  }
-  s.meetings.push(m);V.mid=m.id;V.table=0;save();
-  if(noAtt){V.stack=true;V.az=true;go('close')}else go('attendance');
-}
-
-/* ---------- seating ---------- */
-function seats(){
-  const s=sec();
-  const body=s.tables.map((t,i)=>`<div class="card"><div class="eyebrow">Table ${i+1}</div>
-    ${t.map(id=>{const st=stu(s,id);return `<div class="student"><div class="row">
-      <div class="grow"><div class="name trunc">${esc(label(st))}</div></div>
-      <button class="chip" style="width:52px" onclick="move('${id}',-1)">↑</button>
-      <button class="chip" style="width:52px" onclick="move('${id}',1)">↓</button>
-    </div></div>`}).join('')}</div>`).join('');
-  $('app').innerHTML=head('Seating','tables of four',"go('home')")+
-    `<p class="sub">Order these to match your walking route. Table 1 is where you start.</p>`+body;
-  bar(`<button class="btn" onclick="go('home')">Done</button>`);
-}
-function move(id,dir){
-  const s=sec();let flat=s.tables.flat();const i=flat.indexOf(id),j=i+dir;
-  if(j<0||j>=flat.length)return;
-  [flat[i],flat[j]]=[flat[j],flat[i]];s.tables=chunk(flat,4);save();render();
-}
-
-/* ---------- attendance ---------- */
-function attendance(){
-  const s=sec(),m=mtg();
-  const sm=shortMap(s);
-  const cells=s.tables.flat().map(id=>{
-    const st=stu(s,id),c=m.attendance[id]||'✓';
-    const cls=c==='✓'?'':(c==='AB'||c==='TX'?'gone':'ex');
-    const nm=(ATT.find(a=>a[0]===c)||[])[1]||'';
-    return `<button class="att ${cls}" onclick="pickAtt('${id}')">
-      <div class="who">${esc(sm[id])}</div><div class="code">${esc(c)} ${esc(nm)}</div></button>`}).join('');
-  const ex=Object.values(m.attendance).filter(c=>c&&c!=='✓').length;
-  $('app').innerHTML=head('Attendance',esc(m.title),"go('home')")+
-    `<p class="sub">Everyone starts present. Tap only the exceptions.</p><div class="grid2">${cells}</div>`;
-  bar(m.attDone
-    ? `<button class="btn" onclick="attDone(V.stack)">Back to grading</button>`
-    : `<button class="btn" onclick="attDone()">${ex} exception${ex===1?'':'s'} — walk the tables</button>
-       <button class="btn ghost sm" onclick="attDone(true)">Collected in the box — grade later</button>`);
-}
-function pickAtt(id){
-  const s=sec();
-  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
-    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))}</div>
-    ${ATT.map(([c,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:16px"
-      onclick="setAtt('${id}','${c}')"><b style="font-family:var(--mono)">${c}</b> &nbsp; ${n}</button>`).join('')}
-    </div></div>`;
-}
-function setAtt(id,c){
-  const m=mtg();m.attendance[id]=c;
-  const v=m.scores[id];
-  if(c==='AB'||c==='TX'){
-    if(!v||v.auto)m.scores[id]={code:'AB',touched:true,auto:true};
-  }else if(v&&v.auto){
-    delete m.scores[id];        // they turned up after all — back to unchecked
-  }
-  save();render();
-}
-function attDone(stack){
-  const m=mtg(),s=sec();
-  act(s).forEach(st=>{const c=m.attendance[st.id],v=m.scores[st.id];
-    if(c==='AB'||c==='TX'){if(!v||v.auto)m.scores[st.id]={code:'AB',touched:true,auto:true}}
-    else if(v&&v.auto)delete m.scores[st.id];});
-  const first=!m.attDone;
-  m.attDone=true;save();
-  if(first)V.table=0;              // coming back mid-class keeps your place
-  if(stack){V.stack=true;V.az=true;go('close')}else{V.stack=false;go('homework')}
-}
-
-/* ---------- homework ---------- */
-function homework(){
-  const s=sec(),m=mtg(),t=s.tables[V.table]||[];
-  const rows=t.map(id=>{
-    const st=stu(s,id),v=m.scores[id]||{},cur=markOf(v)||'--',un=!v.touched;
-    const opens=openFor(s,id,m.id);
-    const chip=(txt,on,cls,fn)=>`<button class="chip ${on?'on '+cls:''}" onclick="${fn}">${txt}</button>`;
-    return `<div class="student ${un?'untouched':''}">
-      <div class="row"><div class="grow"><div class="name trunc">${esc(label(st))}</div>
-        <div class="meta">${esc(nameOf(cur)||cur)}${v.auto?' · auto':''}</div></div>
-        <button class="chip dash ${un?'on code':'quiet'}" onclick="setMark('${id}','--')">—</button></div>
-      <div class="strip">
-        ${MARKS.map(([k,,tone])=>chip(show(k),cur===k,tone==='bad'?'low':tone==='code'?'code':'',`setMark('${id}','${k}')`)).join('')}
-      </div>
-      ${opens.map(o=>`<div class="open"><div class="row"><div class="grow">
-        <div class="meta">${o.scores[id].code==='--'?'I never checked':'Still owes'} ${esc(o.title)}${o.scores[id].code==='--'?'':' · '+esc(o.scores[id].code)}</div></div>
-        <button class="chip" style="width:78px" onclick="revise('${id}','${o.id}')">Score</button>
-      </div></div>`).join('')}
-    </div>`}).join('');
-  const ticks=s.tables.map((_,i)=>`<i class="${i<V.table?'done':i===V.table?'now':''}"></i>`).join('');
-  $('app').innerHTML=head(`Table ${V.table+1}`,`of ${s.tables.length} · ${esc(m.title)}`,
-      m.attendance?"go('attendance')":"go('home')", m.attendance?'Attendance':'Home')+
-    `<div class="tick">${ticks}</div><div class="card">${rows||'<div class="empty">Empty table.</div>'}</div>`;
-  const last=V.table>=s.tables.length-1;
-  bar(`<div class="grid2">
-        ${V.table>0?`<button class="btn ghost sm" onclick="V.table--;render()">Previous</button>`
-                   :`<button class="btn ghost sm" onclick="go('attendance')">Attendance</button>`}
-        <button class="btn ghost sm" onclick="V.stack=true;V.az=true;go('close')">Grade the stack</button>
-      </div>
-      <button class="btn" onclick="nextTable()">${last?'Finish class':'Next table'}</button>`);
-}
-function setMark(id,k){
-  const m=mtg();
-  if(k==='--')delete m.scores[id];
-  else m.scores[id]=/^[0-9]$/.test(k)?{val:+k,touched:true}:{code:k,touched:true};
-  save();render();
-}
-function markOf(v){return v?(v.code||(v.val!=null?String(v.val):null)):null}
-function revise(id,mid){
-  const s=sec(),o=s.meetings.find(x=>x.id===mid);
-  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
-    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(o.title)}</div>
-    <h1 style="margin:6px 0 12px">Revised score</h1>
-    <div class="strip four">${['5','4','NC'].map(k=>`<button class="chip" onclick="setRev('${id}','${mid}','${k}')">${k}</button>`).join('')}
-      <button class="chip quiet" onclick="$('sheet').innerHTML=''">Cancel</button></div>
-    </div></div>`;
-}
-function setRev(id,mid,n){n=/^[0-9]$/.test(n)?+n:n;
-  const s=sec(),o=s.meetings.find(x=>x.id===mid);
-  o.scores[id]=Object.assign({},o.scores[id],{rev:n,sent:false});save();render();
-}
-function nextTable(){
-  const s=sec();
-  if(V.table<s.tables.length-1){V.table++;render();window.scrollTo(0,0);return}
-  go('close');
-}
-
-/* ---------- close ---------- */
-function closeOut(){
-  const s=sec(),m=mtg();
-  const tone=k=>k==='5'||k==='4'?'good':k==='NC'?'bad':k==='--'?'none':'code';
-  const sm=shortMap(s,!!V.az);
-  const order=V.az
-    ? act(s).slice().sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first)).map(x=>x.id)
-    : s.tables.flat();
-  const cells=order.map(id=>{
-    const st=stu(s,id),v=m.scores[id]||{},k=markOf(v)||'--';
-    return `<button class="rv ${tone(k)}" onclick="pickAny('${id}')">
-      <span class="mk">${esc(show(k))}</span>
-      <span class="who">${esc(sm[id])}</span>
-      ${v.auto?'<span class="meta">auto</span>':''}</button>`}).join('');
-  const count={};act(s).forEach(st=>{const k=markOf(m.scores[st.id]||{})||'--';count[k]=(count[k]||0)+1});
-  const un=count['--']||0;
-  const tally=['5','4','NC','AB','MU'].filter(k=>count[k]).map(k=>`<span>${k} · ${count[k]}</span>`).join('')+
-    (un?`<span class="warn">not checked · ${un}</span>`:'');
-  $('app').innerHTML=head(V.stack?'Grade the stack':'Review',
-      esc(m.title)+(m.noAtt?' · no attendance':''),
-      m.noAtt?"go('home')":"go('homework')", m.noAtt?'Home':'Tables')+
-    `<div class="tally">${tally}
-      <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">
-        ${V.az?'A–Z':'seating order'} ⇅</span>
-      <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span>
-      ${m.attendance?`<span onclick="go('attendance')" style="cursor:pointer">attendance ✎</span>`:''}</div>
-     <div class="grid2">${cells}</div>`+
-    (un?`<div class="warnbox" style="margin-top:12px"><div class="meta" style="color:var(--attention)">
-      ${un} student${un===1?'':'s'} still unchecked. They stay blank and come back tomorrow —
-      no score gets invented.</div></div>`:'');
-  bar(`<button class="btn ${un?'warn':''}" onclick="finish()">Close ${esc(m.title)}</button>
-       <button class="btn ghost sm" onclick="go('homework')">Back to tables</button>`);
-}
-function renameSheet(){
-  const m=mtg();
-  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
-    <div class="panel"><div class="eyebrow">Assignment name</div>
-    <div style="height:10px"></div>
-    <input type="text" id="ren" value="${esc(m.title)}" autocomplete="off">
-    <button class="btn" onclick="doRename()">Save</button>
-    <button class="btn ghost sm" onclick="$('sheet').innerHTML=''">Cancel</button>
-    </div></div>`;
-}
-function doRename(){
-  const m=mtg(),t=($('ren').value||'').trim();
-  if(t){m.title=t;m.synced=false;save()}
-  $('sheet').innerHTML='';render();
-}
-function pickAny(id){
-  const s=sec();
-  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
-    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))}</div>
-    ${ALL.map(([k,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:16px"
-      onclick="setMark('${id}','${k}');$('sheet').innerHTML=''"><b style="font-family:var(--mono)">${show(k)}</b>
-      &nbsp; ${n}</button>`).join('')}
-    </div></div>`;
-}
-function finish(){
-  const s=sec(),m=mtg();
-  act(s).forEach(st=>{if(!(m.scores[st.id]||{}).touched)m.scores[st.id]={code:'--',missed:true}});
-  m.closed=true;V.stack=false;save();go('export');syncSection(s.id,true);
-}
-
-/* ---------- export ---------- */
-function exportView(){
-  const s=sec(),done=s.meetings.filter(m=>m.closed);
-  const rows=[['Last name','First name',...done.flatMap(m=>[m.title,'Regrade '+m.date])]];
-  s.students.forEach(st=>{
-    rows.push([st.last,st.first,...done.flatMap(m=>{
-      const v=m.scores[st.id]||{};return [v.code||v.val||'', v.rev??'']})]);
-  });
-  const tsv=rows.map(r=>r.join('\t')).join('\n');
-  const sess=done.filter(m=>m.attendance);
-  const att=[['Last name','First name',...sess.map(m=>m.date)]];
-  s.students.forEach(st=>att.push([st.last,st.first,...sess.map(m=>m.attendance[st.id]||'✓')]));
-  const atsv=att.map(r=>r.join('\t')).join('\n');
-  const pend=pendingExport(s);
-  const un=unsynced(s).length;
-  $('app').innerHTML=head(S.cfg.url?'Backup':'Export',esc(s.name),"go('home')")+banner()+
-    (!S.cfg.url?''
-     :un?`<div class="card"><div class="name">${un} meeting${un===1?'':'s'} to send</div>
-      <button class="btn sm" onclick="syncSection('${s.id}')">Send to the sheet</button></div>`
-     :`<div class="card"><div class="meta" style="color:var(--confirm)">Everything is in the sheet.</div></div>`)+
-    (pend?`<div class="warnbox"><div class="meta" style="color:var(--attention)">${pend} revised score${pend===1?'':'s'} not yet in Schoology</div></div>`:'')+
-    `<p class="sub" style="margin-top:22px">${S.cfg.url?'Every score this phone holds. Only needed if the script breaks or you lose access to the sheet.':'Copy, then paste into your gradebook tab.'}</p>
-     <textarea readonly id="tsv">${esc(tsv)}</textarea>
-     <button class="btn sm" onclick="copy('tsv')">Copy homework</button>
-     <p class="sub" style="margin-top:22px">Attendance</p>
-     <textarea readonly id="atsv">${esc(atsv)}</textarea>
-     <button class="btn sm ghost" onclick="copy('atsv')">Copy attendance</button>
-     ${pend?`<button class="btn sm ghost" onclick="markSent()">Mark revisions as sent</button>`:''}
-     <p class="sub" style="margin-top:30px">Full backup — every section, every score, and your sheet
-       settings. Email it to yourself. Restoring it on a new phone puts everything back, including the
-       token, so keep it private.</p>
-     <textarea readonly id="dump" style="min-height:110px">${esc(JSON.stringify(S))}</textarea>
-     <button class="btn sm" onclick="copy('dump')">Copy full backup</button>
-     <p class="sub" style="margin-top:22px">Restore — paste a backup here. This replaces everything
-       currently on this phone.</p>
-     <textarea id="load" style="min-height:90px" placeholder='{"sections":[...]}'></textarea>
-     <button class="btn sm ghost" onclick="restoreAll()">Restore from backup</button>`;
-  bar((lastClosed(s)?`<button class="btn ghost sm" onclick="reopen()">Reopen ${esc(lastClosed(s).title)}</button>`:'')+
-      `<button class="btn ghost" onclick="go('home')">Done</button>`);
-}
-function copy(id){
-  const el=$(id);el.select();el.setSelectionRange(0,999999);
-  navigator.clipboard?.writeText(el.value).catch(()=>document.execCommand('copy'));
-}
-function restoreAll(){
-  let o;
-  try{o=JSON.parse($('load').value)}catch(e){return alert('That is not a valid backup — paste the whole thing, starting with {')}
-  if(!o||!Array.isArray(o.sections))return alert('That backup has no sections in it.')
-  const n=o.sections.length,m=o.sections.reduce((a,x)=>a+(x.meetings||[]).length,0);
-  if(!confirm(`Restore ${n} section${n===1?'':'s'} and ${m} assignment${m===1?'':'s'}?\n\n`+
-    `Everything currently on this phone will be replaced.`))return;
-  o.cfg=o.cfg||{};
-  S=o;V.sid=null;V.mid=null;V.hid=null;save();go('home');
-}
-function markSent(){
-  const s=sec();s.meetings.forEach(m=>Object.values(m.scores).forEach(v=>{if(v&&v.rev!=null)v.sent=true}));
-  save();render();
-}
-
-/* ---------- add section ---------- */
-function addSection(){
-  $('app').innerHTML=head('Add a section','roster',"go('home')")+
-    `<p class="sub">Copy the name columns straight out of your gradebook tab and paste here.
-     One student per line: last name, first name, then any extra columns you want carried along.</p>
-     <input type="text" id="snm" placeholder="Section name, e.g. Period 3 Physics" autocomplete="off">
-     <div style="height:10px"></div>
-     <textarea id="raw" placeholder="Bohr	Niels
-Curie	Marie"></textarea>`;
-  bar(`<button class="btn" onclick="createSection()">Create section</button>`);
-}
-function createSection(){
-  const n=$('snm').value.trim(),raw=$('raw').value;
-  if(!n||!raw.trim())return alert('Needs a name and at least one student.');
-  const s=mkSection(n,raw);
-  if(!s.students.length)return alert('No students found in that paste.');
-  const d=dupes(s.students);
-  if(d.length&&!V.dupOk){
-    V.dupOk=true;
-    return alert('Two students share a name: '+
-      d.map(g=>g[0].first+' '+g[0].last).join(', ')+
-      '.\n\nThey will look identical everywhere in the app. Add a middle initial to one '+
-      '(e.g. "Smith  Aiden J") and paste again — or tap Create again to keep them as is.');
-  }
-  V.dupOk=false;
-  S.sections.push(s);save();V.sid=s.id;go('seats');
-}
-
-
-/* ---------- sync ---------- */
-function unsynced(s){return s.meetings.filter(m=>m.closed&&!m.synced)}
-
-async function syncSection(id,quiet){
-  const s=S.sections.find(x=>x.id===id), c=S.cfg;
-  // only send someone to setup if they asked to sync; never on auto-close
-  if(!c.url||!c.token){if(quiet)return;V.sid=id;go('settings');return}
-  const pend=unsynced(s);
-  if(!pend.length){if(!quiet)alert('Nothing new to send.');return}
-  V.busy=`Sending ${pend.length} meeting${pend.length===1?'':'s'}…`;render();
-  const k=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
-  const byKey={}; s.students.forEach(st=>byKey[st.id]=k(st));
-  const payload={token:c.token,section:s.name,
-    students:act(s).map(st=>({last:st.last,first:st.first})),
-    meetings:pend.map(m=>{
-      const sc={},at=m.attendance?{}:null;
-      s.students.forEach(st=>{   // archived students keep their historical marks
-        const v=m.scores[st.id]; if(v)sc[byKey[st.id]]={val:v.val,code:v.code,rev:v.rev};
-        if(at)at[byKey[st.id]]=m.attendance[st.id]||'P';
-      });
-      return {title:m.title,date:m.date,scores:sc,attendance:at};
-    })};
-  try{
-    const r=await fetch(c.url,{method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify(payload)});
-    const d=await r.json();
-    V.busy=null;
-    if(!d.ok){V.err=d.error||'Sheet refused the write.';render();return}
-    pend.forEach(m=>m.synced=true);
-    s.meetings.forEach(m=>Object.values(m.scores).forEach(v=>{if(v&&v.rev!=null)v.sent=true}));
-    V.err=null; V.ok=`${d.meetings} sent · ${d.matched} students`+
-      (d.unmatched&&d.unmatched.length?` · ${d.unmatched.length} name${d.unmatched.length===1?'':'s'} unmatched`:'');
-    save();render();
-  }catch(e){
-    V.busy=null; V.err='Could not reach the sheet. Scores are safe on this phone — try again on better wifi.';
-    render();
-  }
-}
-
-
 function banner(){
   if(V.busy)return `<div class="warnbox"><div class="meta">${esc(V.busy)}</div></div>`;
   if(V.err)return `<div class="warnbox" style="border-color:var(--flag)"><div class="meta" style="color:var(--flag)">${esc(V.err)}</div></div>`;
-  if(V.ok)return `<div class="card" style="border-color:var(--confirm)"><div class="meta" style="color:var(--confirm)">Synced — ${esc(V.ok)}</div></div>`;
+  if(V.ok)return `<div class="okbox"><div class="meta" style="color:var(--confirm)">${esc(V.ok)}</div></div>`;
   return '';
 }
-async function syncAll(){for(const s of S.sections)if(unsynced(s).length)await syncSection(s.id,true)}
+function closeSheet(){$('sheet').innerHTML=''}
+function panel(inner){
+  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)closeSheet()">
+    <div class="panel">${inner}</div></div>`;
+}
+function go(v){V.view=v;render();window.scrollTo(0,0)}
 
-function settings(){
-  const c=S.cfg;
-  $('app').innerHTML=head('Sheet sync','apps script',"go('home')")+
-    `<p class="sub">Paste the web app URL and token from your Apps Script deployment.
-      These stay on this phone only.</p>
-     <input type="text" id="url" placeholder="https://script.google.com/macros/s/.../exec"
-       value="${esc(c.url||'')}" autocomplete="off"><div style="height:10px"></div>
-     <input type="text" id="tok" placeholder="Token" value="${esc(c.token||'')}" autocomplete="off">`;
-  bar(`<button class="btn" onclick="saveCfg()">Save</button>`);
-}
-function saveCfg(){
-  S.cfg={url:$('url').value.trim(),token:$('tok').value.trim()};save();
-  const id=V.sid; go('home');
-  if(S.cfg.url&&S.cfg.token&&id)syncSection(id,true);
+const VIEWS={};
+/* Each screen expects a particular kind of record. If state drifts — a stale id,
+   a deleted class — fall back rather than throw a blank page. */
+const NEEDS={grade:'hw',review:'hw',lateone:'hw',attendance:'session'};
+function render(){
+  closeSheet();
+  if(V.view!=='home'&&V.view!=='menu'&&V.view!=='add'&&V.view!=='sync'&&V.view!=='backup'&&!sec())V.view='home';
+  const need=NEEDS[V.view];
+  if(need){const it=item();if(!it||it.kind!==need)V.view=sec()?'section':'home'}
+  (VIEWS[V.view]||VIEWS.home)();
 }
 
-
-/* ---------- student records ---------- */
-function anyOpen(s,id){
-  const st=stu(s,id),from=(st&&st.from)||0;
-  return s.meetings.filter(m=>m.closed).filter((m,i)=>{
-    if(i<from)return false;
-    const v=m.scores[id]||{}; return OWED.indexOf(v.code)>=0 && v.rev==null;
-  }).length;
-}
-function people(){
-  const s=sec(),sm=shortMap(s,true);
-  const rows=s.students.slice()
-    .sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first))
-    .map(st=>{
-      const n=anyOpen(s,st.id);
-      return `<button class="rv ${n?'none':''}" style="margin-bottom:6px"
-        onclick="V.hid='${st.id}';go('history')">
-        <span class="who" style="${st.out?'color:var(--muted)':''}">${esc(sm[st.id])}</span>
-        <span class="meta">${st.out?'left · ':''}${n?n+' open':''}</span></button>`}).join('');
-  $('app').innerHTML=head('Student records',esc(s.name),"go('home')")+
-    `<p class="sub">Every assignment stays reachable here, however long ago it was.</p>${rows}`;
-  bar(`<button class="btn ghost" onclick="go('home')">Done</button>`);
-}
-function history(){
-  const s=sec(),id=V.hid,st=stu(s,id);
-  const done=s.meetings.filter(m=>m.closed);
-  const tone=k=>k==='5'||k==='4'?'good':k==='NC'?'bad':k==='--'?'none':'code';
-  const from=st.from||0;
-  const rows=done.map((m,i)=>({m:m,pre:i<from})).reverse().map(o=>{
-    const m=o.m,v=m.scores[id]||{},k=markOf(v)||'--';
-    if(o.pre)return `<div class="rv" style="margin-bottom:6px;opacity:.5">
-      <span class="mk" style="font-size:11px">n/e</span>
-      <span class="who">${esc(m.title)}</span>
-      <span class="meta">not enrolled yet</span></div>`;
-    return `<button class="rv ${tone(k)}" style="margin-bottom:6px" onclick="editHist('${m.id}')">
-      <span class="mk">${esc(show(k))}</span>
-      <span class="who">${esc(m.title)}</span>
-      <span class="meta">${v.rev!=null?'→ '+esc(show(String(v.rev)))+' &nbsp;':''}${esc(m.date)}${m.synced?'':' · unsent'}</span>
+/* ============ home ============ */
+VIEWS.home=function(){
+  const stuck=S.sections.reduce((n,s)=>n+unsynced(s).length,0);
+  const list=S.sections.map(s=>{
+    const un=unsynced(s).length, d=today();
+    const sess=sessionOn(s,d), hw=hwsOn(s,d);
+    return `<button class="card tap" onclick="V.sid='${s.id}';go('section')">
+      <div class="row"><div class="grow">
+        <div class="name trunc">${esc(s.name)}</div>
+        <div class="meta">${act(s).length} students · ${closedHws(s).length} assignments</div>
+      </div>${un?`<span class="meta" style="color:var(--attention)">${un} unsent</span>`:''}</div>
+      ${sess?`<div class="meta" style="margin-top:7px;color:var(--confirm)">Attendance taken ${esc(when(d))}${hw.length?` · ${hw.length} assignment${hw.length===1?'':'s'} today`:''}</div>`:''}
     </button>`}).join('');
-  $('app').innerHTML=head(label(st),esc(s.name),"go('people')")+
-    (done.length?`<p class="sub">Tap any assignment to change its score or add a regrade.</p>${rows}`
-      :'<div class="empty">No closed assignments yet.</div>');
-  bar(`<button class="btn ghost" onclick="go('people')">Back to students</button>`);
+  $('app').innerHTML=head('Homework Check','classes',null,null,
+      `<button class="cog" onclick="go('menu')">⚙</button>`)+banner()+
+    (S.sections.length?list:'<div class="empty">No classes yet.<br>Add one from the ⚙ menu.</div>')+
+    (S.cfg.url?'':`<div class="warnbox"><div class="meta" style="color:var(--attention)">Sheet sync not set up — scores stay on this phone.</div></div>`);
+  bar(stuck?`<button class="btn" onclick="syncAll()">Send ${stuck} to the sheet</button>`:'');
+};
+
+VIEWS.menu=function(){
+  const stuck=S.sections.reduce((n,s)=>n+unsynced(s).length,0);
+  $('app').innerHTML=head('Settings','',"go('home')",'Classes')+banner()+
+    `<button class="card tap" onclick="go('add')"><div class="name">Add a class</div>
+       <div class="meta">Paste a roster</div></button>
+     <button class="card tap" onclick="go('sync')"><div class="name">Sheet sync</div>
+       <div class="meta">${S.cfg.url?'Connected':'Not set up'}</div></button>
+     <button class="card tap" onclick="go('backup')"><div class="name">Backup &amp; restore</div>
+       <div class="meta">All classes${stuck?' · '+stuck+' unsent':''}</div></button>`;
+  bar('');
+};
+
+/* ============ one class ============ */
+VIEWS.section=function(){
+  const s=sec(),d=today(),sess=sessionOn(s,d),hw=hwsOn(s,d);
+  const live=s.items.filter(x=>!x.closed);
+  const openHw=Object.keys(owedIndex(s)).length;
+  const todayCard=`<div class="card">
+    <div class="eyebrow">Today · ${esc(when(d))}</div>
+    <div style="margin-top:8px">${sess
+      ? `<div class="meta" style="color:var(--confirm)">Attendance done — ${
+          Object.values(sess.attendance).filter(c=>c&&c!=='P').length} exception(s)</div>`
+      : `<div class="meta">No attendance yet</div>`}</div>
+    ${hw.length?hw.map(h=>`<button class="rv ${h.closed?'good':'none'}" style="margin-top:7px"
+        onclick="openHwItem('${h.id}')"><span class="mk">${h.closed?'✓':'…'}</span>
+        <span class="who">${esc(h.title)}</span>
+        <span class="meta">${h.closed?'done':'in progress'}</span></button>`).join('')
+      :`<div class="meta" style="margin-top:6px">No assignments logged today</div>`}</div>`;
+  const others=live.filter(x=>x.date!==d);
+  $('app').innerHTML=head(s.name,'',"go('home')",'Classes')+banner()+todayCard+
+    (others.length?`<div class="warnbox"><div class="meta" style="color:var(--attention)">
+      Unfinished from another day: ${others.map(x=>esc(x.title||when(x.date))).join(', ')}</div></div>`:'')+
+    `<div class="grid2" style="margin-top:14px">
+      <button class="card tap" onclick="go('late')" style="margin:0"><div class="name">Late work</div>
+        <div class="meta">${openHw?openHw+' assignment'+(openHw===1?'':'s'):'nothing open'}</div></button>
+      <button class="card tap" onclick="go('people')" style="margin:0"><div class="name">Students</div>
+        <div class="meta">records</div></button>
+      <button class="card tap" onclick="go('seats')" style="margin:0"><div class="name">Seating</div>
+        <div class="meta">${unseated(s).length?unseated(s).length+' unseated':'all seated'}</div></button>
+      <button class="card tap" onclick="go('roster')" style="margin:0"><div class="name">Roster</div>
+        <div class="meta">add or remove</div></button>
+    </div>`;
+  bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
+        ${sess?'Attendance — edit':'Take attendance'}</button>
+      <button class="btn ghost" onclick="newHwSheet()">Grade an assignment</button>`);
+};
+
+function newSession(){
+  const s=sec(),d=today();
+  const it={id:uid(),kind:'session',date:d,attendance:{},closed:false,synced:false};
+  s.items.push(it);V.iid=it.id;save();go('attendance');
 }
-function editHist(mid){
-  const s=sec(),m=s.meetings.find(x=>x.id===mid),id=V.hid,v=m.scores[id]||{};
-  const btn=(k,kind)=>`<button class="chip ${markOf(v)===k&&kind==='s'?'on':''}"
-    onclick="setHist('${mid}','${kind}','${k}')">${show(k)}</button>`;
-  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
-    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(m.title)}</div>
+function openHwItem(id){V.iid=id;const h=item();V.tab=firstTodo();V.az=!!h.stack;go(h.closed?'review':'grade')}
+
+/* ============ new assignment: name + date ============ */
+function newHwSheet(){
+  const s=sec(),n=hws(s).length+1;
+  panel(`<div class="eyebrow">${esc(s.name)}</div>
+    <h1 style="margin:6px 0 12px">New assignment</h1>
+    <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
+    <div style="height:9px"></div>
+    <input type="date" id="dte" value="${today()}">
+    <div class="meta" style="margin-top:8px">Absences from that day fill in as AB automatically.</div>
+    <button class="btn" onclick="createHw(false)">Grade at the tables</button>
+    <button class="btn ghost" onclick="createHw(true)">Grade a stack</button>
+    <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
+}
+function createHw(stack){
+  const s=sec(),t=($('ttl').value||'HW').trim(),d=$('dte').value||today();
+  const it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack};
+  fillAbsences(s,it);
+  s.items.push(it);V.iid=it.id;V.az=!!stack;V.tab=0;save();
+  closeSheet();go(stack?'review':'grade');
+}
+/* an assignment inherits that date's absences */
+function fillAbsences(s,it){
+  const sess=sessionOn(s,it.date);
+  if(!sess)return;
+  act(s).forEach(st=>{
+    const c=sess.attendance[st.id],v=it.scores[st.id];
+    if(ABSENT.includes(c)){if(!v||v.auto)it.scores[st.id]={code:'AB',touched:true,auto:true}}
+    else if(v&&v.auto)delete it.scores[st.id];
+  });
+}
+
+/* ============ attendance ============ */
+VIEWS.attendance=function(){
+  const s=sec(),it=item();
+  const cells=act(s).slice().sort(byName).map(st=>{
+    const c=it.attendance[st.id]||'P';
+    const cls=c==='P'?'':(ABSENT.includes(c)?'gone':'ex');
+    return `<button class="att ${cls}" onclick="pickAtt('${st.id}')">
+      <div class="who">${esc(label(st))}</div>
+      <div class="code">${esc(c)} · ${esc((ATT.find(a=>a[0]===c)||[,''])[1])}</div></button>`}).join('');
+  const ex=Object.values(it.attendance).filter(c=>c&&c!=='P').length;
+  $('app').innerHTML=head('Attendance',when(it.date),"go('section')",'Class')+
+    `<p class="sub">Everyone starts present. Tap only the exceptions.</p><div class="grid2">${cells}</div>`;
+  bar(`<button class="btn" onclick="doneAtt()">Done — ${ex} exception${ex===1?'':'s'}</button>`);
+};
+const byName=(a,b)=>(a.last+a.first).localeCompare(b.last+b.first);
+function pickAtt(id){
+  const s=sec();
+  panel(`<div class="eyebrow">${esc(label(stu(s,id)))}</div>
+    ${ATT.map(([c,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
+      onclick="setAtt('${id}','${c}')"><b style="font-family:var(--mono)">${c}</b> &nbsp; ${n}</button>`).join('')}`);
+}
+function setAtt(id,c){
+  const s=sec(),it=item();
+  it.attendance[id]=c;it.synced=false;
+  // every assignment on this date follows the correction
+  hwsOn(s,it.date).forEach(h=>{fillAbsences(s,h);h.synced=false});
+  save();render();
+}
+function doneAtt(){const it=item();it.closed=true;save();go('section');syncSection(V.sid,true)}
+
+/* ============ grading at the tables ============ */
+VIEWS.grade=function(){
+  const s=sec(),it=item(),i=V.tab||0;
+  const order=[3,4,5,2,1,0];
+  const tabs=order.map(t=>{
+    const ids=tableIds(s,t);
+    const todo=ids.some(id=>!(it.scores[id]||{}).touched);
+    const cls=t===i?'now':!ids.length?'empty':todo?'todo':'done';
+    return `<button class="tab ${cls}" onclick="V.tab=${t};render()">${t+1}</button>`}).join('');
+  const ids=tableIds(s,i);
+  const rows=ids.map(id=>gradeRow(s,it,id)).join('')||'<div class="empty">No one at this table.</div>';
+  const left=act(s).filter(st=>!(it.scores[st.id]||{}).touched).length;
+  $('app').innerHTML=head(it.title,when(it.date),"go('section')",'Class')+
+    `<div class="tabs">${tabs}</div><div class="card">${rows}</div>`;
+  bar(`<button class="btn" onclick="V.az=false;go('review')">Review${left?` — ${left} left`:''}</button>`);
+};
+function gradeRow(s,it,id){
+  const st=stu(s,id),v=it.scores[id]||{},cur=markOf(v)||'--',un=!v.touched;
+  const q=tableQueue(s,id,it.id);
+  const chip=(k,on)=>`<button class="chip ${on?'on '+toneOf(k):''}" onclick="setMark('${id}','${k}')">${show(k)}</button>`;
+  return `<div class="student ${un?'untouched':''}">
+    <div class="row"><div class="grow"><div class="name trunc">${esc(label(st))}</div>
+      <div class="meta">${esc(nameOf(cur))}${v.auto?' · auto':''}</div></div>
+      <button class="chip dash ${un?'on warn':'quiet'}" onclick="setMark('${id}','--')">—</button></div>
+    <div class="strip">${MARKS.map(m=>chip(m[0],cur===m[0])).join('')}</div>
+    ${q.map(o=>`<div class="warnbox" style="margin:7px 0 0"><div class="row"><div class="grow">
+      <div class="meta" style="color:var(--attention)">${o.scores[id].code==='--'?'I never checked':'Owes'} ${esc(o.title)}</div></div>
+      <button class="chip quiet" style="width:74px;padding:8px 0" onclick="reviseSheet('${id}','${o.id}')">Score</button>
+      </div></div>`).join('')}
+  </div>`;
+}
+function setMark(id,k){
+  const it=item();
+  if(k==='--')delete it.scores[id];
+  else it.scores[id]=/^[0-9]$/.test(k)?{val:+k,touched:true}:{code:k,touched:true};
+  it.synced=false;save();render();
+}
+function firstTodo(){
+  const s=sec(),it=item();if(!it)return 0;
+  for(const t of [3,4,5,2,1,0]){const ids=tableIds(s,t);
+    if(ids.length&&ids.some(id=>!(it.scores[id]||{}).touched))return t}
+  return 3;
+}
+
+/* ============ review ============ */
+VIEWS.review=function(){
+  const s=sec(),it=item();
+  const order=V.az?act(s).slice().sort(byName).map(x=>x.id)
+                  :s.tables.flat().filter(Boolean).filter(id=>{const st=stu(s,id);return st&&!st.out});
+  const cells=order.map(id=>{
+    const st=stu(s,id),v=it.scores[id]||{},k=markOf(v)||'--';
+    return `<button class="rv ${toneOf(k)==='good'?'good':toneOf(k)==='bad'?'bad':toneOf(k)==='info'?'info':'none'}"
+      onclick="pickAny('${id}')"><span class="mk">${esc(show(k))}</span>
+      <span class="who">${esc(label(st))}</span>${v.auto?'<span class="meta">auto</span>':''}</button>`}).join('');
+  const count={};act(s).forEach(st=>{const k=markOf(it.scores[st.id]||{})||'--';count[k]=(count[k]||0)+1});
+  const un=count['--']||0;
+  const tally=['5','4','NC','MU','AB'].filter(k=>count[k]).map(k=>`<span>${k} · ${count[k]}</span>`).join('')+
+    (un?`<span class="warn">not checked · ${un}</span>`:'');
+  $('app').innerHTML=head(it.closed?'Scores':'Review',esc(it.title)+' · '+when(it.date),
+      it.stack?"go('section')":"go('grade')",it.stack?'Class':'Tables')+banner()+
+    `<div class="tally">${tally}
+       <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">${V.az?'A–Z':'by table'} ⇅</span>
+       <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span></div>
+     <div class="grid2">${cells}</div>`+
+    (un&&!it.closed?`<div class="warnbox" style="margin-top:11px"><div class="meta" style="color:var(--attention)">
+      ${un} unchecked. They stay blank and show up in Late work — no score is invented.</div></div>`:'');
+  bar(it.closed
+    ? `<button class="btn ghost" onclick="go('section')">Done</button>`
+    : `<button class="btn ${un?'warn':''}" onclick="closeHw()">Close ${esc(it.title)}</button>`);
+};
+function pickAny(id){
+  const s=sec();
+  panel(`<div class="eyebrow">${esc(label(stu(s,id)))}</div>
+    ${ALL.map(([k,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
+      onclick="setMark('${id}','${k}');closeSheet()"><b style="font-family:var(--mono)">${show(k)}</b> &nbsp; ${n}</button>`).join('')}`);
+}
+function renameSheet(){
+  const it=item();
+  panel(`<div class="eyebrow">Assignment</div><div style="height:9px"></div>
+    <input type="text" id="ren" value="${esc(it.title)}" autocomplete="off">
+    <div style="height:9px"></div>
+    <input type="date" id="rdt" value="${esc(it.date)}">
+    <button class="btn" onclick="doRename()">Save</button>
+    <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
+}
+function doRename(){
+  const s=sec(),it=item(),t=($('ren').value||'').trim(),d=$('rdt').value||it.date;
+  if(t)it.title=t;
+  if(d!==it.date){it.date=d;fillAbsences(s,it)}
+  it.synced=false;save();closeSheet();render();
+}
+function closeHw(){
+  const s=sec(),it=item();
+  act(s).forEach(st=>{if(!(it.scores[st.id]||{}).touched)it.scores[st.id]={code:'--',missed:true}});
+  it.closed=true;it.synced=false;save();render();syncSection(s.id,true);
+}
+
+/* ============ late work, by assignment ============ */
+VIEWS.late=function(){
+  const s=sec();
+  const owed=owedIndex(s);
+  const rows=closedHws(s).slice().reverse().map(h=>{
+    const who=owed[h.id]||[];
+    if(!who.length)return '';
+    return `<button class="rv none" style="margin-bottom:6px" onclick="V.iid='${h.id}';go('lateone')">
+      <span class="mk">${who.length}</span><span class="who">${esc(h.title)}</span>
+      <span class="meta">${esc(when(h.date))}</span></button>`}).join('');
+  $('app').innerHTML=head('Late work',esc(s.name),"go('section')",'Class')+
+    (rows?`<p class="sub">Pick the assignment, then work down the pile.</p>${rows}`
+        :'<div class="empty">Nothing outstanding.</div>');
+  bar('');
+};
+VIEWS.lateone=function(){
+  const s=sec(),h=item();
+  const who=owedIndex(s)[h.id]||[];
+  const rows=who.slice().sort(byName).map(st=>{
+    const v=h.scores[st.id]||{},k=markOf(v)||'--';
+    return `<div class="student"><div class="row"><div class="grow">
+      <div class="name trunc">${esc(label(st))}</div>
+      <div class="meta">${esc(nameOf(k))}${v.rev!=null?' → '+esc(show(String(v.rev))):''}</div></div></div>
+      <div class="strip four">${['5','4','NC'].map(x=>
+        `<button class="chip ${v.rev==(/^[0-9]$/.test(x)?+x:x)?'on '+toneOf(x):''}"
+          onclick="setLate('${st.id}','${x}')">${x}</button>`).join('')}
+        <button class="chip quiet" onclick="setLate('${st.id}','')">clear</button></div>
+    </div>`}).join('');
+  $('app').innerHTML=head(h.title,when(h.date),"go('late')",'Late work')+
+    (rows?`<p class="sub">${who.length} outstanding. Entering a score here records it as a regrade.</p>
+      <div class="card">${rows}</div>`:'<div class="empty">All caught up on this one.</div>');
+  bar(`<button class="btn ghost" onclick="go('late')">Done</button>`);
+};
+function setLate(id,val){
+  const h=item(),v=Object.assign({},h.scores[id]||{});
+  if(val===''){delete v.rev;delete v.sent}
+  else{v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false}
+  h.scores[id]=v;h.synced=false;save();render();
+}
+function reviseSheet(id,hid){
+  const s=sec(),h=s.items.find(x=>x.id===hid);
+  panel(`<div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(h.title)}</div>
+    <h1 style="margin:6px 0 12px">Regrade</h1>
+    <div class="strip four">${['5','4','NC'].map(k=>
+      `<button class="chip" onclick="setRev('${id}','${hid}','${k}')">${k}</button>`).join('')}
+      <button class="chip quiet" onclick="closeSheet()">Cancel</button></div>`);
+}
+function setRev(id,hid,val){
+  const s=sec(),h=s.items.find(x=>x.id===hid),v=Object.assign({},h.scores[id]||{});
+  v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false;
+  h.scores[id]=v;h.synced=false;save();closeSheet();render();
+}
+
+/* ============ student records ============ */
+VIEWS.people=function(){
+  const s=sec();
+  const rows=s.students.slice().sort(byName).map(st=>{
+    const n=openList(s,st.id).length;
+    return `<button class="rv ${n?'none':''}" style="margin-bottom:6px" onclick="V.hid='${st.id}';go('history')">
+      <span class="who" style="${st.out?'color:var(--muted)':''}">${esc(label(st))}</span>
+      <span class="meta">${st.out?'left · ':''}${n?n+' open':''}</span></button>`}).join('');
+  $('app').innerHTML=head('Students',esc(s.name),"go('section')",'Class')+rows;
+  bar('');
+};
+VIEWS.history=function(){
+  const s=sec(),id=V.hid,st=stu(s,id),from=st.from||0;
+  const rows=closedHws(s).map((h,i)=>({h,pre:i<from})).reverse().map(o=>{
+    const v=o.h.scores[id]||{},k=markOf(v)||'--';
+    if(o.pre)return `<div class="rv" style="margin-bottom:6px;opacity:.5"><span class="mk" style="font-size:11px">n/e</span>
+      <span class="who">${esc(o.h.title)}</span><span class="meta">not enrolled</span></div>`;
+    return `<button class="rv ${toneOf(k)==='good'?'good':toneOf(k)==='bad'?'bad':toneOf(k)==='info'?'info':'none'}"
+      style="margin-bottom:6px" onclick="editHist('${o.h.id}')">
+      <span class="mk">${esc(show(k))}</span><span class="who">${esc(o.h.title)}</span>
+      <span class="meta">${v.rev!=null?'→ '+esc(show(String(v.rev)))+' ':''}${esc(when(o.h.date))}${o.h.synced?'':' · unsent'}</span></button>`}).join('');
+  const att=sessions(s).filter(x=>x.closed).slice().reverse().slice(0,8)
+    .map(x=>`${when(x.date)} ${x.attendance[id]||'P'}`).join(' · ');
+  $('app').innerHTML=head(label(st),esc(s.name),"go('people')",'Students')+
+    (rows?`<p class="sub">Tap an assignment to change it.</p>${rows}`:'<div class="empty">No assignments yet.</div>')+
+    (att?`<p class="sub" style="margin-top:20px">Recent attendance</p><div class="card"><div class="meta">${esc(att)}</div></div>`:'');
+  bar('');
+};
+function editHist(hid){
+  const s=sec(),h=s.items.find(x=>x.id===hid),id=V.hid,v=h.scores[id]||{};
+  panel(`<div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(h.title)}</div>
     <p class="sub" style="margin:10px 0 6px">Score</p>
-    <div class="strip six">${['5','4','NC','AB','MU','--'].map(k=>btn(k,'s')).join('')}</div>
-    <p class="sub" style="margin:16px 0 6px">Regrade${v.rev!=null?' — now '+esc(show(String(v.rev))):''}</p>
-    <div class="strip">${['5','4','NC'].map(k=>btn(k,'r')).join('')}
-      <button class="chip quiet" onclick="setHist('${mid}','r','')">none</button>
-      <button class="chip quiet" onclick="$('sheet').innerHTML=''">Cancel</button></div>
-    </div></div>`;
+    <div class="strip six">${ALL.map(([k])=>`<button class="chip ${markOf(v)===k?'on '+toneOf(k):''}"
+      onclick="setHist('${hid}','s','${k}')">${show(k)}</button>`).join('')}</div>
+    <p class="sub" style="margin:15px 0 6px">Regrade${v.rev!=null?' — now '+esc(show(String(v.rev))):''}</p>
+    <div class="strip">${['5','4','NC'].map(k=>`<button class="chip" onclick="setHist('${hid}','r','${k}')">${k}</button>`).join('')}
+      <button class="chip quiet" onclick="setHist('${hid}','r','')">none</button>
+      <button class="chip quiet" onclick="closeSheet()">Cancel</button></div>`);
 }
-function setHist(mid,kind,val){
-  const s=sec(),m=s.meetings.find(x=>x.id===mid),id=V.hid;
-  const v=Object.assign({},m.scores[id]||{});
+function setHist(hid,kind,val){
+  const s=sec(),h=s.items.find(x=>x.id===hid),id=V.hid,v=Object.assign({},h.scores[id]||{});
   if(kind==='s'){
-    delete v.val; delete v.code; delete v.auto; delete v.missed;
+    delete v.val;delete v.code;delete v.auto;delete v.missed;
     if(val==='--'){v.code='--';v.missed=true}
     else if(/^[0-9]$/.test(val)){v.val=+val;v.touched=true}
-    else {v.code=val;v.touched=true}
+    else{v.code=val;v.touched=true}
   }else{
     if(val===''){delete v.rev;delete v.sent}
-    else {v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false}
+    else{v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false}
   }
-  m.scores[id]=v;
-  m.synced=false;              // re-push so the sheet matches the app
-  save();$('sheet').innerHTML='';render();
+  h.scores[id]=v;h.synced=false;save();closeSheet();render();
 }
 
+/* ============ seating ============ */
+VIEWS.seats=function(){
+  const s=sec(),order=[3,4,5,2,1,0];
+  const grid=order.map(t=>`<div class="card" style="margin:0;padding:9px">
+    <div class="eyebrow">Table ${t+1}</div>
+    ${s.tables[t].map((id,k)=>{const st=id&&stu(s,id);
+      return `<button class="slot ${st&&!st.out?'full':''}" style="width:100%;margin-top:5px"
+        onclick="pickSeat(${t},${k})">${st&&!st.out?esc(label(st)):'—'}</button>`}).join('')}
+    </div>`).join('');
+  const u=unseated(s);
+  $('app').innerHTML=head('Seating',esc(s.name),"go('section')",'Class')+
+    `<p class="sub">Laid out as you see the room from the front. Empty seats are fine.</p>
+     <div class="grid2" style="gap:7px;grid-template-columns:1fr 1fr 1fr">${grid}</div>`+
+    (u.length?`<div class="warnbox" style="margin-top:12px"><div class="meta" style="color:var(--attention)">
+      ${u.length} not seated: ${u.slice().sort(byName).map(x=>esc(label(x))).join(', ')}</div></div>`:'');
+  bar(`<button class="btn ghost" onclick="autoSeat()">Fill empty seats A–Z</button>
+       <button class="btn ghost sm" onclick="go('section')">Done</button>`);
+};
+function pickSeat(t,k){
+  const s=sec(),cur=s.tables[t][k];
+  panel(`<div class="eyebrow">Table ${t+1}, seat ${k+1}</div>
+    ${cur?`<button class="btn ghost sm danger" style="text-align:left;padding-left:15px"
+      onclick="setSeat(${t},${k},'')">Empty this seat</button>`:''}
+    ${unseated(s).slice().sort(byName).map(st=>`<button class="btn ghost sm"
+      style="text-align:left;padding-left:15px" onclick="setSeat(${t},${k},'${st.id}')">${esc(label(st))}</button>`).join('')
+      ||'<div class="meta" style="padding:10px 4px">Everyone is seated.</div>'}`);
+}
+function setSeat(t,k,id){
+  const s=sec();
+  if(id)s.tables.forEach(r=>r.forEach((v,j)=>{if(v===id)r[j]=null}));
+  s.tables[t][k]=id||null;save();closeSheet();render();
+}
+function autoSeat(){
+  const s=sec();
+  unseated(s).slice().sort(byName).forEach(st=>place(s.tables,st.id));
+  save();render();
+}
 
-/* ---------- roster changes ---------- */
-function roster(){
-  const s=sec(),sm=shortMap(s,true),left=gone(s);
-  const az=list=>list.slice().sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first));
-  const row=(st,archived)=>`<div class="rv" style="margin-bottom:6px">
-    <span class="who" style="${archived?'color:var(--muted)':''}">${esc(sm[st.id])}</span>
+/* ============ roster ============ */
+VIEWS.roster=function(){
+  const s=sec(),left=gone(s);
+  const row=(st,arch)=>`<div class="rv" style="margin-bottom:6px">
+    <span class="who" style="${arch?'color:var(--muted)':''}">${esc(label(st))}</span>
     <button class="chip quiet" style="width:82px;padding:8px 0"
-      onclick="${archived?`restore('${st.id}')`:`archive('${st.id}')`}">${archived?'Restore':'Remove'}</button></div>`;
-  $('app').innerHTML=head('Roster',esc(s.name),"go('home')")+
-    `<p class="sub">${act(s).length} enrolled. Removing a student stops them appearing in class
-      but keeps every score they already have.</p>${az(act(s)).map(st=>row(st,false)).join('')}
-     ${left.length?`<p class="sub" style="margin-top:22px">No longer in this class</p>
-       ${az(left).map(st=>row(st,true)).join('')}`:''}
-     <p class="sub" style="margin-top:22px">Add students — one per line, last name then first</p>
-     <textarea id="more" placeholder="Noether	Emmy"></textarea>`;
+      onclick="${arch?`unarchive('${st.id}')`:`archive('${st.id}')`}">${arch?'Restore':'Remove'}</button></div>`;
+  $('app').innerHTML=head('Roster',esc(s.name),"go('section')",'Class')+
+    `<p class="sub">${act(s).length} enrolled. Removing keeps every score they already have.</p>
+     ${act(s).slice().sort(byName).map(st=>row(st,false)).join('')}
+     ${left.length?`<p class="sub" style="margin-top:20px">No longer in this class</p>
+       ${left.slice().sort(byName).map(st=>row(st,true)).join('')}`:''}
+     <p class="sub" style="margin-top:20px">Add students — one per line, last name then first</p>
+     <textarea id="more" placeholder="Noether\tEmmy"></textarea>`;
   bar(`<button class="btn" onclick="addStudents()">Add</button>
-       <div class="grid2">
-         <button class="btn ghost sm" onclick="dropSection()"
-           style="color:var(--flag);border-color:var(--flag)">Delete section</button>
-         <button class="btn ghost sm" onclick="go('home')">Done</button>
-       </div>`);
-}
-function dropSection(){
-  const s=sec(),n=s.meetings.filter(m=>m.closed).length,un=unsynced(s).length;
-  const warn=`Delete "${s.name}"?\n\n${act(s).length} students and ${n} closed assignment${n===1?'':'s'} `+
-    `will be removed from this phone.\n\n`+
-    (un?`${un} of them have NOT been sent to the sheet — those scores are gone for good.`
-       :`Anything already sent to the sheet stays in the sheet.`);
-  if(!confirm(warn))return;
-  S.sections=S.sections.filter(x=>x.id!==s.id);
-  V.sid=null;V.mid=null;V.hid=null;save();go('home');
-}
+       <div class="grid2"><button class="btn ghost sm danger" onclick="dropSection()">Delete class</button>
+       <button class="btn ghost sm" onclick="go('section')">Done</button></div>`);
+};
 function addStudents(){
   const s=sec(),k=st=>(st.last+'|'+st.first).trim().toLowerCase();
   const have=s.students.map(k);
-  const fresh=parseRoster($('more').value).filter(n=>have.indexOf(k(n))<0);
-  if(!fresh.length)return alert('No new names found — check for typos or duplicates.');
-  const from=s.meetings.filter(m=>m.closed).length;   // earlier work isn't theirs to owe
-  fresh.forEach(st=>st.from=from);
-  s.students=s.students.concat(fresh);
-  reseat(s);save();render();
+  const fresh=parseRoster($('more').value).filter(n=>!have.includes(k(n)));
+  if(!fresh.length)return alert('No new names found.');
+  const from=closedHws(s).length;
+  fresh.forEach(st=>{st.from=from;s.students.push(st);place(s.tables,st.id)});
+  const d=dupes(s.students);
+  if(d.length)alert('Warning — duplicate name: '+d.map(g=>label(g[0])).join(', ')+
+    '. They will look identical everywhere. Consider adding a middle initial.');
+  save();render();
 }
-function archive(id){const s=sec();stu(s,id).out=true;reseat(s);save();render()}
-function restore(id){const s=sec();delete stu(s,id).out;reseat(s);save();render()}
+function archive(id){const s=sec();stu(s,id).out=true;
+  s.tables.forEach(r=>r.forEach((v,j)=>{if(v===id)r[j]=null}));save();render()}
+function unarchive(id){const s=sec();delete stu(s,id).out;place(s.tables,id);save();render()}
+function dropSection(){
+  const s=sec(),n=closedHws(s).length,un=unsynced(s).length;
+  if(!confirm(`Delete "${s.name}"?\n\n${act(s).length} students and ${n} assignment${n===1?'':'s'} `+
+    `will be removed from this phone.\n\n`+(un?`${un} record${un===1?'':'s'} have NOT reached the sheet — those are gone for good.`
+      :`Anything already in the sheet stays there.`)))return;
+  S.sections=S.sections.filter(x=>x.id!==s.id);
+  forget(s.id);V.sid=V.iid=V.hid=null;saveAll();go('home');
+}
 
-function go(v){V.view=v;render();window.scrollTo(0,0)}
+/* ============ add a class ============ */
+VIEWS.add=function(){
+  $('app').innerHTML=head('Add a class','roster',"go('menu')",'Settings')+
+    `<p class="sub">Paste the name columns from your gradebook. One student per line:
+      last name, then first.</p>
+     <input type="text" id="snm" placeholder="Class name, e.g. Period 3 Physics" autocomplete="off">
+     <div style="height:9px"></div><textarea id="raw" placeholder="Bohr\tNiels"></textarea>`;
+  bar(`<button class="btn" onclick="createSection()">Create</button>`);
+};
+function createSection(){
+  const n=($('snm').value||'').trim(),raw=$('raw').value;
+  if(!n||!String(raw).trim())return alert('Needs a name and at least one student.');
+  const s=mkSection(n,raw);
+  if(!s.students.length)return alert('No students found in that paste.');
+  const d=dupes(s.students);
+  if(d.length)alert('Warning — duplicate name: '+d.map(g=>label(g[0])).join(', '));
+  S.sections.push(s);V.sid=s.id;saveAll();go('seats');
+}
+
+/* ============ sync ============ */
+VIEWS.sync=function(){
+  const c=S.cfg;
+  $('app').innerHTML=head('Sheet sync','apps script',"go('menu')",'Settings')+
+    `<p class="sub">Paste the web app URL and token from your Apps Script deployment.
+      These stay on this phone.</p>
+     <input type="text" id="url" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(c.url||'')}" autocomplete="off">
+     <div style="height:9px"></div>
+     <input type="text" id="tok" placeholder="Token" value="${esc(c.token||'')}" autocomplete="off">`;
+  bar(`<button class="btn" onclick="saveCfg()">Save</button>`);
+};
+function saveCfg(){
+  S.cfg={url:($('url').value||'').trim(),token:($('tok').value||'').trim()};
+  save();go('home');
+  if(S.cfg.url&&S.cfg.token)syncAll();
+}
+async function syncAll(){for(const s of S.sections)if(unsynced(s).length)await syncSection(s.id,true)}
+
+async function syncSection(id,quiet){
+  const s=S.sections.find(x=>x.id===id),c=S.cfg;
+  if(!c.url||!c.token){if(quiet)return;go('sync');return}
+  const pend=unsynced(s);
+  if(!pend.length){if(!quiet)alert('Nothing new to send.');return}
+  V.busy=`Sending ${pend.length}…`;V.err=V.ok=null;render();
+  const key=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
+  const kk={};s.students.forEach(st=>kk[st.id]=key(st));
+  const payload={token:c.token,section:s.name,
+    students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first})),
+    items:pend.map(x=>{
+      const o={kind:x.kind,date:x.date,label:when(x.date)};
+      if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
+      else{o.title=x.title;o.scores={};
+        s.students.forEach(st=>{const v=x.scores[st.id];
+          if(v)o.scores[kk[st.id]]={val:v.val,code:v.code,rev:v.rev,sent:!!v.sent}})}
+      return o;
+    })};
+  try{
+    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(payload)});
+    const d=await r.json();
+    V.busy=null;
+    if(!d.ok){V.err=d.error||'The sheet refused the write.';render();return}
+    pend.forEach(x=>x.synced=true);
+    const keep=V.sid;V.sid=s.id;
+    V.ok=`Sent ${d.items||pend.length} · ${d.matched||''} students`+
+      (d.unmatched&&d.unmatched.length?` · ${d.unmatched.length} unmatched`:'');
+    save();V.sid=keep;render();
+  }catch(e){
+    V.busy=null;V.err='Could not reach the sheet. Everything is safe on this phone — try again on better wifi.';
+    render();
+  }
+}
+function markSent(){
+  S.sections.forEach(s=>hws(s).forEach(h=>{
+    let hit=false;
+    Object.values(h.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent){v.sent=true;hit=true}});
+    if(hit)h.synced=false;
+  }));
+  saveAll();syncAll();
+}
+
+/* ============ backup ============ */
+VIEWS.backup=function(){
+  const stuck=S.sections.reduce((n,s)=>n+unsynced(s).length,0);
+  const pend=S.sections.reduce((n,s)=>n+pendingSend(s),0);
+  $('app').innerHTML=head('Backup','all classes',"go('menu')",'Settings')+banner()+
+    (stuck?`<div class="warnbox"><div class="meta" style="color:var(--attention)">${stuck} record${stuck===1?'':'s'} not yet in the sheet</div></div>`
+         :S.cfg.url?`<div class="okbox"><div class="meta" style="color:var(--confirm)">Everything is in the sheet.</div></div>`:'')+
+    `<p class="sub">Every class, every score, and your sheet settings. Email it to yourself —
+      it contains your token and student names, so keep it private.</p>
+     <textarea readonly id="dump" style="min-height:80px" placeholder="Tap below to build it"></textarea>
+     <button class="btn sm" onclick="makeBackup()">Copy backup</button>
+     <p class="sub" style="margin-top:20px">Restore — replaces everything on this phone.</p>
+     <textarea id="load" style="min-height:80px" placeholder='{"sections":[...]}'></textarea>
+     <button class="btn sm ghost" onclick="restoreAll()">Restore</button>`;
+  bar((stuck?`<button class="btn" onclick="syncAll()">Send ${stuck} to the sheet</button>`:'')+
+      (pend?`<button class="btn ghost sm" onclick="markSent()">Clear ${pend} regrade highlight${pend===1?'':'s'}</button>`:'')+
+      `<button class="btn ghost sm" onclick="go('menu')">Done</button>`);
+};
+function makeBackup(){
+  const el=$('dump');
+  el.value=JSON.stringify({sections:S.sections,cfg:S.cfg});
+  copyBox('dump');
+  V.ok='Backup copied — paste it into an email to yourself.';render();
+}
+function copyBox(id){
+  const el=$(id);el.select&&el.select();el.setSelectionRange&&el.setSelectionRange(0,999999);
+  if(navigator.clipboard)navigator.clipboard.writeText(el.value).catch(()=>{});
+}
+function restoreAll(){
+  let o;
+  try{o=JSON.parse($('load').value)}catch(e){return alert('Not a valid backup — paste the whole thing, starting with {')}
+  if(!o||!Array.isArray(o.sections))return alert('That backup has no classes in it.');
+  const n=o.sections.length,m=o.sections.reduce((a,x)=>a+((x.items||x.meetings||[]).length),0);
+  if(!confirm(`Restore ${n} class${n===1?'':'es'} and ${m} record${m===1?'':'s'}?\n\nEverything on this phone will be replaced.`))return;
+  o.cfg=o.cfg||{};o.sections.forEach(migrate);
+  S={sections:o.sections,cfg:o.cfg};V.sid=V.iid=V.hid=null;saveAll();go('home');
+}
+
 render();
 </script>
 </body>
