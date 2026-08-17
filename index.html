@@ -23,7 +23,7 @@ body{
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   -webkit-user-select:none;user-select:none;overscroll-behavior:none;
 }
-#app{max-width:640px;margin:0 auto;padding:0 14px 120px}
+#app{max-width:640px;margin:0 auto;padding:0 14px 176px}
 
 header{display:flex;align-items:baseline;gap:10px;padding:18px 2px 14px;position:sticky;top:0;background:var(--ground);z-index:5}
 h1{font-size:19px;font-weight:650;letter-spacing:-.2px;margin:0;flex:1}
@@ -62,6 +62,7 @@ input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge
 .strip.six{grid-template-columns:repeat(6,1fr)}
 .strip.four{grid-template-columns:repeat(4,1fr)}
 .chip.quiet{color:var(--muted);font-size:13px}
+.chip.dash{flex:none;width:46px;padding:9px 0;font-size:15px}
 .chip{padding:14px 0;border-radius:10px;border:1px solid var(--edge);text-align:center;
   font-family:var(--mono);font-size:16px;font-weight:600;color:var(--muted)}
 .chip:active{background:var(--raised)}
@@ -127,8 +128,9 @@ input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge
 <script>
 const SCORES=[5,4,3,2,1];
 const MARKS=[['5','complete','good'],['4','mostly complete','good'],
-             ['NC','not complete','bad'],['--','not checked','none']];
-const MORE=[['AB','absent today'],['MU','absent when assigned']];
+             ['NC','not complete','bad'],['MU','absent when assigned','code'],
+             ['AB','absent today','code']];
+const MORE=[['--','not checked','none']];
 /* Only absence-caused gaps and my own misses come back at the table.
    NC makeups go through the turn-in box and straight into Schoology.
    An owed item stays live for CARRY meetings, then drops off quietly. */
@@ -137,7 +139,7 @@ const CARRY=2;
 const ALL=MARKS.concat(MORE);
 const show=k=>k==='--'?'—':k;
 const nameOf=k=>(ALL.find(x=>x[0]===k)||[,''])[1];
-const ATT=[['✓','present'],['T','tardy'],['TE','excused tardy'],['TX','tardy = absent'],['AB','absent'],['LE','left early']];
+const ATT=[['AB','absent'],['TX','tardy — counts absent'],['TE','excused tardy'],['✓','present']];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -185,6 +187,14 @@ function parseRoster(raw){
 }
 function chunk(a,n){return a.reduce((o,v,i)=>(i%n?o[o.length-1].push(v):o.push([v]),o),[])}
 const sec=()=>S.sections.find(x=>x.id===V.sid);
+const act=s=>s.students.filter(st=>!st.out);        // enrolled now
+const gone=s=>s.students.filter(st=>st.out);        // archived, history kept
+function reseat(s){
+  const live=act(s).map(st=>st.id);
+  const order=s.tables.flat().filter(id=>live.indexOf(id)>=0);
+  live.forEach(id=>{if(order.indexOf(id)<0)order.push(id)});
+  s.tables=chunk(order,4);
+}
 const mtg=()=>{const s=sec();return s&&s.meetings.find(m=>m.id===V.mid)};
 const stu=(s,id)=>s.students.find(x=>x.id===id);
 const label=st=>`${st.first} ${st.last}`.trim();
@@ -258,6 +268,7 @@ function render(){
   if(v==='export')return exportView();
   if(v==='settings')return settings();
   if(v==='people')return people();
+  if(v==='roster')return roster();
   if(v==='history')return history();
 }
 function head(title,eyebrow,back){
@@ -275,9 +286,9 @@ function home(){
     return `<button class="card tap" onclick="openSection('${s.id}')">
       <div class="row"><div class="grow">
         <div class="name trunc">${esc(s.name)}</div>
-        <div class="meta">${s.students.length} students · ${s.tables.length} tables · ${done} meeting${done===1?'':'s'}</div>
+        <div class="meta">${act(s).length} students · ${s.tables.length} tables · ${done} meeting${done===1?'':'s'}</div>
       </div>${live||un?'<span class="dot"></span>':''}</div>
-      ${live?`<div class="open"><div class="meta">In progress — ${esc(live.title)}</div></div>`:''}
+      ${live?`<div class="open"><div class="meta">In progress — ${esc(live.title)}${live.noAtt?' · no attendance':''}</div></div>`:''}
       ${un?`<div class="open"><div class="meta">${un} meeting${un===1?'':'s'} not yet in the sheet</div></div>`:''}
       ${dupes(s.students).length?`<div class="open"><div class="meta">Duplicate name in roster —
         ${esc(dupes(s.students).map(g=>g[0].first+' '+g[0].last).join(', '))}</div></div>`:''}
@@ -295,7 +306,10 @@ function home(){
 
 function openSection(id){V.sid=id;const s=sec();
   const live=s.meetings.find(m=>!m.closed);
-  if(live){V.mid=live.id;V.table=0;go(live.attDone?'homework':'attendance');return}
+  if(live){V.mid=live.id;V.table=0;
+    if(live.noAtt){V.stack=true;V.az=true;go('close')}
+    else go(live.attDone?'homework':'attendance');
+    return}
   startSheet();
 }
 function startSheet(){
@@ -305,22 +319,29 @@ function startSheet(){
       <div class="eyebrow">${esc(s.name)} · meeting ${n}</div>
       <h1 style="margin:6px 0 12px">Name this assignment</h1>
       <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
-      <button class="btn" onclick="startMeeting()">Start class</button>
+      <button class="btn" onclick="startMeeting()">Start class — attendance first</button>
+      <button class="btn ghost" onclick="startMeeting(true)">Score this only — no attendance</button>
+      <button class="btn ghost sm" onclick="go('roster')">Roster — add or remove</button>
       <button class="btn ghost sm" onclick="go('people')">Student records</button>
       <button class="btn ghost sm" onclick="go('seats')">Arrange seating</button>
       <button class="btn ghost sm" onclick="go('export')">Export to spreadsheet</button>
     </div></div>`;
 }
-function startMeeting(){
+function startMeeting(noAtt){
   const s=sec(),t=($('ttl').value||'HW').trim();
-  const m={id:uid(),title:t,date:new Date().toISOString().slice(0,10),attendance:{},scores:{},attDone:false,closed:false};
-  // absent when this was assigned -> MU
-  const prev=s.meetings.filter(x=>x.closed).slice(-1)[0];
-  if(prev)s.students.forEach(st=>{
-    const a=prev.attendance[st.id];
-    if(a==='AB'||a==='TX')m.scores[st.id]={code:'MU',touched:true,auto:true};
-  });
-  s.meetings.push(m);V.mid=m.id;V.table=0;save();go('attendance');
+  const today=new Date().toISOString().slice(0,10);
+  const m={id:uid(),title:t,date:today,scores:{},closed:false,
+           noAtt:!!noAtt, attendance:noAtt?null:{}, attDone:!!noAtt};
+  if(noAtt){
+    // a second assignment the same day inherits today's absences
+    const sess=s.meetings.filter(x=>x.attendance&&x.date===today).slice(-1)[0];
+    if(sess)act(s).forEach(st=>{
+      const a=sess.attendance[st.id];
+      if(a==='AB'||a==='TX')m.scores[st.id]={code:'AB',touched:true,auto:true};
+    });
+  }
+  s.meetings.push(m);V.mid=m.id;V.table=0;save();
+  if(noAtt){V.stack=true;V.az=true;go('close')}else go('attendance');
 }
 
 /* ---------- seating ---------- */
@@ -369,7 +390,7 @@ function pickAtt(id){
 function setAtt(id,c){const m=mtg();m.attendance[id]=c;save();render()}
 function attDone(stack){
   const m=mtg(),s=sec();
-  s.students.forEach(st=>{const c=m.attendance[st.id],v=m.scores[st.id];
+  act(s).forEach(st=>{const c=m.attendance[st.id],v=m.scores[st.id];
     if((c==='AB'||c==='TX')&&(!v||v.auto))m.scores[st.id]={code:'AB',touched:true,auto:true}});
   m.attDone=true;save();V.table=0;
   if(stack){V.stack=true;V.az=true;go('close')}else{V.stack=false;go('homework')}
@@ -381,15 +402,13 @@ function homework(){
   const rows=t.map(id=>{
     const st=stu(s,id),v=m.scores[id]||{},cur=markOf(v)||'--',un=!v.touched;
     const opens=openFor(s,id,m.id);
-    const extra=MARKS.every(x=>x[0]!==cur);
     const chip=(txt,on,cls,fn)=>`<button class="chip ${on?'on '+cls:''}" onclick="${fn}">${txt}</button>`;
     return `<div class="student ${un?'untouched':''}">
       <div class="row"><div class="grow"><div class="name trunc">${esc(label(st))}</div>
         <div class="meta">${esc(nameOf(cur)||cur)}${v.auto?' · auto':''}</div></div>
-        ${un?'<span class="dot"></span>':''}</div>
+        <button class="chip dash ${un?'on code':'quiet'}" onclick="setMark('${id}','--')">—</button></div>
       <div class="strip">
-        ${MARKS.map(([k,,tone])=>chip(show(k),cur===k,tone==='bad'?'low':tone==='none'?'code':'',`setMark('${id}','${k}')`)).join('')}
-        ${chip(extra?cur:'•••',extra,'code',`pickCode('${id}')`)}
+        ${MARKS.map(([k,,tone])=>chip(show(k),cur===k,tone==='bad'?'low':tone==='code'?'code':'',`setMark('${id}','${k}')`)).join('')}
       </div>
       ${opens.map(o=>`<div class="open"><div class="row"><div class="grow">
         <div class="meta">${o.scores[id].code==='--'?'I never checked':'Still owes'} ${esc(o.title)}${o.scores[id].code==='--'?'':' · '+esc(o.scores[id].code)}</div></div>
@@ -414,14 +433,6 @@ function setMark(id,k){
   save();render();
 }
 function markOf(v){return v?(v.code||(v.val!=null?String(v.val):null)):null}
-function pickCode(id){
-  const s=sec();
-  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
-    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))}</div>
-    ${MORE.map(([c,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:16px"
-      onclick="setMark('${id}','${c}')"><b style="font-family:var(--mono)">${c}</b> &nbsp; ${n}</button>`).join('')}
-    </div></div>`;
-}
 function revise(id,mid){
   const s=sec(),o=s.meetings.find(x=>x.id===mid);
   $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
@@ -447,7 +458,7 @@ function closeOut(){
   const tone=k=>k==='5'||k==='4'?'good':k==='NC'?'bad':k==='--'?'none':'code';
   const sm=shortMap(s,!!V.az);
   const order=V.az
-    ? s.students.slice().sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first)).map(x=>x.id)
+    ? act(s).slice().sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first)).map(x=>x.id)
     : s.tables.flat();
   const cells=order.map(id=>{
     const st=stu(s,id),v=m.scores[id]||{},k=markOf(v)||'--';
@@ -455,20 +466,38 @@ function closeOut(){
       <span class="mk">${esc(show(k))}</span>
       <span class="who">${esc(sm[id])}</span>
       ${v.auto?'<span class="meta">auto</span>':''}</button>`}).join('');
-  const count={};s.students.forEach(st=>{const k=markOf(m.scores[st.id]||{})||'--';count[k]=(count[k]||0)+1});
+  const count={};act(s).forEach(st=>{const k=markOf(m.scores[st.id]||{})||'--';count[k]=(count[k]||0)+1});
   const un=count['--']||0;
   const tally=['5','4','NC','AB','MU'].filter(k=>count[k]).map(k=>`<span>${k} · ${count[k]}</span>`).join('')+
     (un?`<span class="warn">not checked · ${un}</span>`:'');
-  $('app').innerHTML=head(V.stack?'Grade the stack':'Review',esc(m.title),"go('homework')")+
+  $('app').innerHTML=head(V.stack?'Grade the stack':'Review',
+      esc(m.title)+(m.noAtt?' · no attendance':''),
+      m.noAtt?"go('home')":"go('homework')")+
     `<div class="tally">${tally}
       <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">
-        ${V.az?'A–Z':'seating order'} ⇅</span></div>
+        ${V.az?'A–Z':'seating order'} ⇅</span>
+      <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span></div>
      <div class="grid2">${cells}</div>`+
     (un?`<div class="warnbox" style="margin-top:12px"><div class="meta" style="color:var(--attention)">
       ${un} student${un===1?'':'s'} still unchecked. They stay blank and come back tomorrow —
       no score gets invented.</div></div>`:'');
   bar(`<button class="btn ${un?'warn':''}" onclick="finish()">Close ${esc(m.title)}</button>
        <button class="btn ghost sm" onclick="go('homework')">Back to tables</button>`);
+}
+function renameSheet(){
+  const m=mtg();
+  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
+    <div class="panel"><div class="eyebrow">Assignment name</div>
+    <div style="height:10px"></div>
+    <input type="text" id="ren" value="${esc(m.title)}" autocomplete="off">
+    <button class="btn" onclick="doRename()">Save</button>
+    <button class="btn ghost sm" onclick="$('sheet').innerHTML=''">Cancel</button>
+    </div></div>`;
+}
+function doRename(){
+  const m=mtg(),t=($('ren').value||'').trim();
+  if(t){m.title=t;m.synced=false;save()}
+  $('sheet').innerHTML='';render();
 }
 function pickAny(id){
   const s=sec();
@@ -481,7 +510,7 @@ function pickAny(id){
 }
 function finish(){
   const s=sec(),m=mtg();
-  s.students.forEach(st=>{if(!(m.scores[st.id]||{}).touched)m.scores[st.id]={code:'--',missed:true}});
+  act(s).forEach(st=>{if(!(m.scores[st.id]||{}).touched)m.scores[st.id]={code:'--',missed:true}});
   m.closed=true;V.stack=false;save();go('export');syncSection(s.id,true);
 }
 
@@ -494,8 +523,9 @@ function exportView(){
       const v=m.scores[st.id]||{};return [v.code||v.val||'', v.rev??'']})]);
   });
   const tsv=rows.map(r=>r.join('\t')).join('\n');
-  const att=[['Last name','First name',...done.map(m=>m.date)]];
-  s.students.forEach(st=>att.push([st.last,st.first,...done.map(m=>m.attendance[st.id]||'✓')]));
+  const sess=done.filter(m=>m.attendance);
+  const att=[['Last name','First name',...sess.map(m=>m.date)]];
+  s.students.forEach(st=>att.push([st.last,st.first,...sess.map(m=>m.attendance[st.id]||'✓')]));
   const atsv=att.map(r=>r.join('\t')).join('\n');
   const pend=pendingExport(s);
   const un=unsynced(s).length;
@@ -565,12 +595,12 @@ async function syncSection(id,quiet){
   const k=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
   const byKey={}; s.students.forEach(st=>byKey[st.id]=k(st));
   const payload={token:c.token,section:s.name,
-    students:s.students.map(st=>({last:st.last,first:st.first})),
+    students:act(s).map(st=>({last:st.last,first:st.first})),
     meetings:pend.map(m=>{
-      const sc={},at={};
-      s.students.forEach(st=>{
+      const sc={},at=m.attendance?{}:null;
+      s.students.forEach(st=>{   // archived students keep their historical marks
         const v=m.scores[st.id]; if(v)sc[byKey[st.id]]={val:v.val,code:v.code,rev:v.rev};
-        at[byKey[st.id]]=m.attendance[st.id]||'P';
+        if(at)at[byKey[st.id]]=m.attendance[st.id]||'P';
       });
       return {title:m.title,date:m.date,scores:sc,attendance:at};
     })};
@@ -620,7 +650,9 @@ function saveCfg(){
 
 /* ---------- student records ---------- */
 function anyOpen(s,id){
-  return s.meetings.filter(m=>m.closed).filter(m=>{
+  const st=stu(s,id),from=(st&&st.from)||0;
+  return s.meetings.filter(m=>m.closed).filter((m,i)=>{
+    if(i<from)return false;
     const v=m.scores[id]||{}; return OWED.indexOf(v.code)>=0 && v.rev==null;
   }).length;
 }
@@ -632,8 +664,8 @@ function people(){
       const n=anyOpen(s,st.id);
       return `<button class="rv ${n?'none':''}" style="margin-bottom:6px"
         onclick="V.hid='${st.id}';go('history')">
-        <span class="who">${esc(sm[st.id])}</span>
-        <span class="meta">${n?n+' open':''}</span></button>`}).join('');
+        <span class="who" style="${st.out?'color:var(--muted)':''}">${esc(sm[st.id])}</span>
+        <span class="meta">${st.out?'left · ':''}${n?n+' open':''}</span></button>`}).join('');
   $('app').innerHTML=head('Student records',esc(s.name),"go('home')")+
     `<p class="sub">Every assignment stays reachable here, however long ago it was.</p>${rows}`;
   bar(`<button class="btn ghost" onclick="go('home')">Done</button>`);
@@ -642,8 +674,13 @@ function history(){
   const s=sec(),id=V.hid,st=stu(s,id);
   const done=s.meetings.filter(m=>m.closed);
   const tone=k=>k==='5'||k==='4'?'good':k==='NC'?'bad':k==='--'?'none':'code';
-  const rows=done.slice().reverse().map(m=>{
-    const v=m.scores[id]||{},k=markOf(v)||'--';
+  const from=st.from||0;
+  const rows=done.map((m,i)=>({m:m,pre:i<from})).reverse().map(o=>{
+    const m=o.m,v=m.scores[id]||{},k=markOf(v)||'--';
+    if(o.pre)return `<div class="rv" style="margin-bottom:6px;opacity:.5">
+      <span class="mk" style="font-size:11px">n/e</span>
+      <span class="who">${esc(m.title)}</span>
+      <span class="meta">not enrolled yet</span></div>`;
     return `<button class="rv ${tone(k)}" style="margin-bottom:6px" onclick="editHist('${m.id}')">
       <span class="mk">${esc(show(k))}</span>
       <span class="who">${esc(m.title)}</span>
@@ -684,6 +721,38 @@ function setHist(mid,kind,val){
   m.synced=false;              // re-push so the sheet matches the app
   save();$('sheet').innerHTML='';render();
 }
+
+
+/* ---------- roster changes ---------- */
+function roster(){
+  const s=sec(),sm=shortMap(s,true),left=gone(s);
+  const az=list=>list.slice().sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first));
+  const row=(st,archived)=>`<div class="rv" style="margin-bottom:6px">
+    <span class="who" style="${archived?'color:var(--muted)':''}">${esc(sm[st.id])}</span>
+    <button class="chip quiet" style="width:82px;padding:8px 0"
+      onclick="${archived?`restore('${st.id}')`:`archive('${st.id}')`}">${archived?'Restore':'Remove'}</button></div>`;
+  $('app').innerHTML=head('Roster',esc(s.name),"go('home')")+
+    `<p class="sub">${act(s).length} enrolled. Removing a student stops them appearing in class
+      but keeps every score they already have.</p>${az(act(s)).map(st=>row(st,false)).join('')}
+     ${left.length?`<p class="sub" style="margin-top:22px">No longer in this class</p>
+       ${az(left).map(st=>row(st,true)).join('')}`:''}
+     <p class="sub" style="margin-top:22px">Add students — one per line, last name then first</p>
+     <textarea id="more" placeholder="Noether	Emmy"></textarea>`;
+  bar(`<button class="btn" onclick="addStudents()">Add</button>
+       <button class="btn ghost sm" onclick="go('home')">Done</button>`);
+}
+function addStudents(){
+  const s=sec(),k=st=>(st.last+'|'+st.first).trim().toLowerCase();
+  const have=s.students.map(k);
+  const fresh=parseRoster($('more').value).filter(n=>have.indexOf(k(n))<0);
+  if(!fresh.length)return alert('No new names found — check for typos or duplicates.');
+  const from=s.meetings.filter(m=>m.closed).length;   // earlier work isn't theirs to owe
+  fresh.forEach(st=>st.from=from);
+  s.students=s.students.concat(fresh);
+  reseat(s);save();render();
+}
+function archive(id){const s=sec();stu(s,id).out=true;reseat(s);save();render()}
+function restore(id){const s=sec();delete stu(s,id).out;reseat(s);save();render()}
 
 function go(v){V.view=v;render();window.scrollTo(0,0)}
 render();
