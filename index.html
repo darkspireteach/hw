@@ -271,8 +271,8 @@ function render(){
   if(v==='roster')return roster();
   if(v==='history')return history();
 }
-function head(title,eyebrow,back){
-  return `<header>${back?`<button class="back" onclick="${back}">‹ Back</button>`:''}
+function head(title,eyebrow,back,label){
+  return `<header>${back?`<button class="back" onclick="${back}">‹ ${esc(label||'Back')}</button>`:''}
     <h1>${esc(title)}</h1><span class="eyebrow">${esc(eyebrow||'')}</span></header>`;
 }
 function bar(html){$('bar').innerHTML=html?`<div class="bar"><div class="inner">${html}</div></div>`:''}
@@ -321,11 +321,23 @@ function startSheet(){
       <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
       <button class="btn" onclick="startMeeting()">Start class — attendance first</button>
       <button class="btn ghost" onclick="startMeeting(true)">Score this only — no attendance</button>
-      <button class="btn ghost sm" onclick="go('roster')">Roster — add or remove</button>
+      ${(()=>{const p=lastClosed(s);return p?`<button class="btn ghost" onclick="reopen()">
+        Reopen ${esc(p.title)}${p.date===new Date().toISOString().slice(0,10)?'':' · '+esc(p.date)}</button>`:''})()}
       <button class="btn ghost sm" onclick="go('people')">Student records</button>
       <button class="btn ghost sm" onclick="go('seats')">Arrange seating</button>
-      <button class="btn ghost sm" onclick="go('export')">Export to spreadsheet</button>
+      <button class="btn ghost sm" onclick="go('export')">Backup &amp; export</button>
+      <button class="btn ghost sm" onclick="go('roster')">Roster — add or remove</button>
     </div></div>`;
+}
+function lastClosed(s){return s.meetings.filter(x=>x.closed).slice(-1)[0]}
+function reopen(){
+  const s=sec(),m=lastClosed(s);
+  if(!m)return;
+  m.closed=false;
+  m.synced=false;          // whatever changes now has to reach the sheet again
+  V.mid=m.id;V.table=0;save();
+  if(m.noAtt){V.stack=true;V.az=true;go('close')}
+  else{V.stack=false;go('attendance')}   // land where the late arrival gets fixed
 }
 function startMeeting(noAtt){
   const s=sec(),t=($('ttl').value||'HW').trim();
@@ -376,7 +388,9 @@ function attendance(){
   const ex=Object.values(m.attendance).filter(c=>c&&c!=='✓').length;
   $('app').innerHTML=head('Attendance',esc(m.title),"go('home')")+
     `<p class="sub">Everyone starts present. Tap only the exceptions.</p><div class="grid2">${cells}</div>`;
-  bar(`<button class="btn" onclick="attDone()">${ex} exception${ex===1?'':'s'} — walk the tables</button>
+  bar(m.attDone
+    ? `<button class="btn" onclick="attDone(V.stack)">Back to grading</button>`
+    : `<button class="btn" onclick="attDone()">${ex} exception${ex===1?'':'s'} — walk the tables</button>
        <button class="btn ghost sm" onclick="attDone(true)">Collected in the box — grade later</button>`);
 }
 function pickAtt(id){
@@ -387,12 +401,24 @@ function pickAtt(id){
       onclick="setAtt('${id}','${c}')"><b style="font-family:var(--mono)">${c}</b> &nbsp; ${n}</button>`).join('')}
     </div></div>`;
 }
-function setAtt(id,c){const m=mtg();m.attendance[id]=c;save();render()}
+function setAtt(id,c){
+  const m=mtg();m.attendance[id]=c;
+  const v=m.scores[id];
+  if(c==='AB'||c==='TX'){
+    if(!v||v.auto)m.scores[id]={code:'AB',touched:true,auto:true};
+  }else if(v&&v.auto){
+    delete m.scores[id];        // they turned up after all — back to unchecked
+  }
+  save();render();
+}
 function attDone(stack){
   const m=mtg(),s=sec();
   act(s).forEach(st=>{const c=m.attendance[st.id],v=m.scores[st.id];
-    if((c==='AB'||c==='TX')&&(!v||v.auto))m.scores[st.id]={code:'AB',touched:true,auto:true}});
-  m.attDone=true;save();V.table=0;
+    if(c==='AB'||c==='TX'){if(!v||v.auto)m.scores[st.id]={code:'AB',touched:true,auto:true}}
+    else if(v&&v.auto)delete m.scores[st.id];});
+  const first=!m.attDone;
+  m.attDone=true;save();
+  if(first)V.table=0;              // coming back mid-class keeps your place
   if(stack){V.stack=true;V.az=true;go('close')}else{V.stack=false;go('homework')}
 }
 
@@ -416,7 +442,8 @@ function homework(){
       </div></div>`).join('')}
     </div>`}).join('');
   const ticks=s.tables.map((_,i)=>`<i class="${i<V.table?'done':i===V.table?'now':''}"></i>`).join('');
-  $('app').innerHTML=head(`Table ${V.table+1}`,`of ${s.tables.length} · ${esc(m.title)}`,"go('attendance')")+
+  $('app').innerHTML=head(`Table ${V.table+1}`,`of ${s.tables.length} · ${esc(m.title)}`,
+      m.attendance?"go('attendance')":"go('home')", m.attendance?'Attendance':'Home')+
     `<div class="tick">${ticks}</div><div class="card">${rows||'<div class="empty">Empty table.</div>'}</div>`;
   const last=V.table>=s.tables.length-1;
   bar(`<div class="grid2">
@@ -472,11 +499,12 @@ function closeOut(){
     (un?`<span class="warn">not checked · ${un}</span>`:'');
   $('app').innerHTML=head(V.stack?'Grade the stack':'Review',
       esc(m.title)+(m.noAtt?' · no attendance':''),
-      m.noAtt?"go('home')":"go('homework')")+
+      m.noAtt?"go('home')":"go('homework')", m.noAtt?'Home':'Tables')+
     `<div class="tally">${tally}
       <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">
         ${V.az?'A–Z':'seating order'} ⇅</span>
-      <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span></div>
+      <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span>
+      ${m.attendance?`<span onclick="go('attendance')" style="cursor:pointer">attendance ✎</span>`:''}</div>
      <div class="grid2">${cells}</div>`+
     (un?`<div class="warnbox" style="margin-top:12px"><div class="meta" style="color:var(--attention)">
       ${un} student${un===1?'':'s'} still unchecked. They stay blank and come back tomorrow —
@@ -529,20 +557,21 @@ function exportView(){
   const atsv=att.map(r=>r.join('\t')).join('\n');
   const pend=pendingExport(s);
   const un=unsynced(s).length;
-  $('app').innerHTML=head('Export',esc(s.name),"go('home')")+banner()+
+  $('app').innerHTML=head(S.cfg.url?'Backup':'Export',esc(s.name),"go('home')")+banner()+
     (!S.cfg.url?''
      :un?`<div class="card"><div class="name">${un} meeting${un===1?'':'s'} to send</div>
       <button class="btn sm" onclick="syncSection('${s.id}')">Send to the sheet</button></div>`
      :`<div class="card"><div class="meta" style="color:var(--confirm)">Everything is in the sheet.</div></div>`)+
     (pend?`<div class="warnbox"><div class="meta" style="color:var(--attention)">${pend} revised score${pend===1?'':'s'} not yet in Schoology</div></div>`:'')+
-    `<p class="sub" style="margin-top:22px">${S.cfg.url?'Manual fallback — only needed if sync is down.':'Copy, then paste into your gradebook tab.'}</p>
+    `<p class="sub" style="margin-top:22px">${S.cfg.url?'Every score this phone holds. Only needed if the script breaks or you lose access to the sheet.':'Copy, then paste into your gradebook tab.'}</p>
      <textarea readonly id="tsv">${esc(tsv)}</textarea>
      <button class="btn sm" onclick="copy('tsv')">Copy homework</button>
      <p class="sub" style="margin-top:22px">Attendance</p>
      <textarea readonly id="atsv">${esc(atsv)}</textarea>
      <button class="btn sm ghost" onclick="copy('atsv')">Copy attendance</button>
      ${pend?`<button class="btn sm ghost" onclick="markSent()">Mark revisions as sent</button>`:''}`;
-  bar(`<button class="btn ghost" onclick="go('home')">Done</button>`);
+  bar((lastClosed(s)?`<button class="btn ghost sm" onclick="reopen()">Reopen ${esc(lastClosed(s).title)}</button>`:'')+
+      `<button class="btn ghost" onclick="go('home')">Done</button>`);
 }
 function copy(id){
   const el=$(id);el.select();el.setSelectionRange(0,999999);
@@ -739,7 +768,21 @@ function roster(){
      <p class="sub" style="margin-top:22px">Add students — one per line, last name then first</p>
      <textarea id="more" placeholder="Noether	Emmy"></textarea>`;
   bar(`<button class="btn" onclick="addStudents()">Add</button>
-       <button class="btn ghost sm" onclick="go('home')">Done</button>`);
+       <div class="grid2">
+         <button class="btn ghost sm" onclick="dropSection()"
+           style="color:var(--flag);border-color:var(--flag)">Delete section</button>
+         <button class="btn ghost sm" onclick="go('home')">Done</button>
+       </div>`);
+}
+function dropSection(){
+  const s=sec(),n=s.meetings.filter(m=>m.closed).length,un=unsynced(s).length;
+  const warn=`Delete "${s.name}"?\n\n${act(s).length} students and ${n} closed assignment${n===1?'':'s'} `+
+    `will be removed from this phone.\n\n`+
+    (un?`${un} of them have NOT been sent to the sheet — those scores are gone for good.`
+       :`Anything already sent to the sheet stays in the sheet.`);
+  if(!confirm(warn))return;
+  S.sections=S.sections.filter(x=>x.id!==s.id);
+  V.sid=null;V.mid=null;V.hid=null;save();go('home');
 }
 function addStudents(){
   const s=sec(),k=st=>(st.last+'|'+st.first).trim().toLowerCase();
