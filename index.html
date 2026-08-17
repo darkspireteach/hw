@@ -301,7 +301,10 @@ function home(){
       Sheet sync not set up — scores stay on this phone until you connect it.</div></div>`);
   bar((stuck?`<button class="btn" onclick="syncAll()">Send ${stuck} meeting${stuck===1?'':'s'} to the sheet</button>`:'')+
       `<button class="btn ghost ${stuck?'sm':''}" onclick="go('add')">Add a section</button>
-       <button class="btn ghost sm" onclick="go('settings')">${S.cfg.url?'Sheet sync':'Connect your sheet'}</button>`);
+       <div class="grid2">
+         <button class="btn ghost sm" onclick="go('settings')">${S.cfg.url?'Sheet sync':'Connect your sheet'}</button>
+         <button class="btn ghost sm" onclick="V.sid=V.sid||(S.sections[0]||{}).id;go('export')">Backup</button>
+       </div>`);
 }
 
 function openSection(id){V.sid=id;const s=sec();
@@ -569,13 +572,32 @@ function exportView(){
      <p class="sub" style="margin-top:22px">Attendance</p>
      <textarea readonly id="atsv">${esc(atsv)}</textarea>
      <button class="btn sm ghost" onclick="copy('atsv')">Copy attendance</button>
-     ${pend?`<button class="btn sm ghost" onclick="markSent()">Mark revisions as sent</button>`:''}`;
+     ${pend?`<button class="btn sm ghost" onclick="markSent()">Mark revisions as sent</button>`:''}
+     <p class="sub" style="margin-top:30px">Full backup — every section, every score, and your sheet
+       settings. Email it to yourself. Restoring it on a new phone puts everything back, including the
+       token, so keep it private.</p>
+     <textarea readonly id="dump" style="min-height:110px">${esc(JSON.stringify(S))}</textarea>
+     <button class="btn sm" onclick="copy('dump')">Copy full backup</button>
+     <p class="sub" style="margin-top:22px">Restore — paste a backup here. This replaces everything
+       currently on this phone.</p>
+     <textarea id="load" style="min-height:90px" placeholder='{"sections":[...]}'></textarea>
+     <button class="btn sm ghost" onclick="restoreAll()">Restore from backup</button>`;
   bar((lastClosed(s)?`<button class="btn ghost sm" onclick="reopen()">Reopen ${esc(lastClosed(s).title)}</button>`:'')+
       `<button class="btn ghost" onclick="go('home')">Done</button>`);
 }
 function copy(id){
   const el=$(id);el.select();el.setSelectionRange(0,999999);
   navigator.clipboard?.writeText(el.value).catch(()=>document.execCommand('copy'));
+}
+function restoreAll(){
+  let o;
+  try{o=JSON.parse($('load').value)}catch(e){return alert('That is not a valid backup — paste the whole thing, starting with {')}
+  if(!o||!Array.isArray(o.sections))return alert('That backup has no sections in it.')
+  const n=o.sections.length,m=o.sections.reduce((a,x)=>a+(x.meetings||[]).length,0);
+  if(!confirm(`Restore ${n} section${n===1?'':'s'} and ${m} assignment${m===1?'':'s'}?\n\n`+
+    `Everything currently on this phone will be replaced.`))return;
+  o.cfg=o.cfg||{};
+  S=o;V.sid=null;V.mid=null;V.hid=null;save();go('home');
 }
 function markSent(){
   const s=sec();s.meetings.forEach(m=>Object.values(m.scores).forEach(v=>{if(v&&v.rev!=null)v.sent=true}));
