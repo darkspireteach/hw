@@ -124,7 +124,11 @@ const SCORES=[5,4,3,2,1];
 const MARKS=[['5','complete','good'],['4','mostly complete','good'],
              ['NC','not complete','bad'],['--','not checked','none']];
 const MORE=[['AB','absent today'],['MU','absent when assigned']];
-const OWED=['NC','AB','MU','--'];
+/* Only absence-caused gaps and my own misses come back at the table.
+   NC makeups go through the turn-in box and straight into Schoology.
+   An owed item stays live for CARRY meetings, then drops off quietly. */
+const OWED=['AB','MU','--'];
+const CARRY=2;
 const ALL=MARKS.concat(MORE);
 const show=k=>k==='--'?'—':k;
 const nameOf=k=>(ALL.find(x=>x[0]===k)||[,''])[1];
@@ -219,7 +223,10 @@ function shortMap(s){
 
 /* open assignments: prior meetings where this student has no real score */
 function openFor(s,sid,exclude){
-  return s.meetings.filter(m=>m.id!==exclude&&m.closed).filter(m=>{
+  const closed=s.meetings.filter(m=>m.closed&&m.id!==exclude);
+  const n=closed.length;
+  return closed.filter((m,i)=>{
+    if(n-1-i>=CARRY)return false;            // older than CARRY meetings: expired
     const v=m.scores[sid]||{};
     return OWED.indexOf(v.code)>=0 && v.rev==null;
   });
@@ -469,11 +476,12 @@ function exportView(){
   const pend=pendingExport(s);
   const un=unsynced(s).length;
   $('app').innerHTML=head('Export',esc(s.name),'go("home")')+banner()+
-    (un?`<div class="card"><div class="name">${un} meeting${un===1?'':'s'} to send</div>
+    (!S.cfg.url?''
+     :un?`<div class="card"><div class="name">${un} meeting${un===1?'':'s'} to send</div>
       <button class="btn sm" onclick="syncSection('${s.id}')">Send to the sheet</button></div>`
      :`<div class="card"><div class="meta" style="color:var(--confirm)">Everything is in the sheet.</div></div>`)+
     (pend?`<div class="warnbox"><div class="meta" style="color:var(--attention)">${pend} revised score${pend===1?'':'s'} not yet in Schoology</div></div>`:'')+
-    `<p class="sub" style="margin-top:22px">Manual fallback — only needed if sync is down.</p>
+    `<p class="sub" style="margin-top:22px">${S.cfg.url?'Manual fallback — only needed if sync is down.':'Copy, then paste into your gradebook tab.'}</p>
      <textarea readonly id="tsv">${esc(tsv)}</textarea>
      <button class="btn sm" onclick="copy('tsv')">Copy homework</button>
      <p class="sub" style="margin-top:22px">Attendance</p>
@@ -525,7 +533,8 @@ function unsynced(s){return s.meetings.filter(m=>m.closed&&!m.synced)}
 
 async function syncSection(id,quiet){
   const s=S.sections.find(x=>x.id===id), c=S.cfg;
-  if(!c.url||!c.token){V.sid=id;go('settings');return}
+  // only send someone to setup if they asked to sync; never on auto-close
+  if(!c.url||!c.token){if(quiet)return;V.sid=id;go('settings');return}
   const pend=unsynced(s);
   if(!pend.length){if(!quiet)alert('Nothing new to send.');return}
   V.busy=`Sending ${pend.length} meeting${pend.length===1?'':'s'}…`;render();
