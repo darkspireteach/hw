@@ -60,6 +60,8 @@ input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge
 .student:last-child{border-bottom:none}
 .strip{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:8px}
 .strip.six{grid-template-columns:repeat(6,1fr)}
+.strip.four{grid-template-columns:repeat(4,1fr)}
+.chip.quiet{color:var(--muted);font-size:13px}
 .chip{padding:14px 0;border-radius:10px;border:1px solid var(--edge);text-align:center;
   font-family:var(--mono);font-size:16px;font-weight:600;color:var(--muted)}
 .chip:active{background:var(--raised)}
@@ -83,8 +85,11 @@ input[type=text]{width:100%;background:var(--ground);border:1px solid var(--edge
 .att.gone{border-color:var(--flag)}
 .att.gone .code{color:var(--flag)}
 
-.bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--ground) 22%);
-  padding:22px 14px calc(14px + env(safe-area-inset-bottom));z-index:10}
+.bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--ground) 20%);
+  padding:20px 12px calc(4px + env(safe-area-inset-bottom));z-index:10}
+.bar .btn{margin-top:6px}
+.bar .grid2{gap:6px;margin-top:6px}
+.bar .grid2 .btn{margin-top:0}
 .bar .inner{max-width:640px;margin:0 auto}
 
 .sheet{position:fixed;inset:0;background:rgba(8,13,18,.7);z-index:50;display:flex;align-items:flex-end}
@@ -252,6 +257,8 @@ function render(){
   if(v==='close')return closeOut();
   if(v==='export')return exportView();
   if(v==='settings')return settings();
+  if(v==='people')return people();
+  if(v==='history')return history();
 }
 function head(title,eyebrow,back){
   return `<header>${back?`<button class="back" onclick="${back}">‹ Back</button>`:''}
@@ -299,6 +306,7 @@ function startSheet(){
       <h1 style="margin:6px 0 12px">Name this assignment</h1>
       <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
       <button class="btn" onclick="startMeeting()">Start class</button>
+      <button class="btn ghost sm" onclick="go('people')">Student records</button>
       <button class="btn ghost sm" onclick="go('seats')">Arrange seating</button>
       <button class="btn ghost sm" onclick="go('export')">Export to spreadsheet</button>
     </div></div>`;
@@ -392,9 +400,12 @@ function homework(){
   $('app').innerHTML=head(`Table ${V.table+1}`,`of ${s.tables.length} · ${esc(m.title)}`,"go('attendance')")+
     `<div class="tick">${ticks}</div><div class="card">${rows||'<div class="empty">Empty table.</div>'}</div>`;
   const last=V.table>=s.tables.length-1;
-  bar(`<button class="btn" onclick="nextTable()">${last?'Finish class':'Next table'}</button>`+
-      (V.table>0?`<button class="btn ghost sm" onclick="V.table--;render()">Previous table</button>`:'')+
-      `<button class="btn ghost sm" onclick="V.stack=true;V.az=true;go('close')">Grade the stack instead</button>`);
+  bar(`<div class="grid2">
+        ${V.table>0?`<button class="btn ghost sm" onclick="V.table--;render()">Previous</button>`
+                   :`<button class="btn ghost sm" onclick="go('attendance')">Attendance</button>`}
+        <button class="btn ghost sm" onclick="V.stack=true;V.az=true;go('close')">Grade the stack</button>
+      </div>
+      <button class="btn" onclick="nextTable()">${last?'Finish class':'Next table'}</button>`);
 }
 function setMark(id,k){
   const m=mtg();
@@ -416,8 +427,8 @@ function revise(id,mid){
   $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
     <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(o.title)}</div>
     <h1 style="margin:6px 0 12px">Revised score</h1>
-    <div class="strip">${['5','4','NC'].map(k=>`<button class="chip" onclick="setRev('${id}','${mid}','${k}')">${k}</button>`).join('')}</div>
-    <button class="btn ghost sm" onclick="$('sheet').innerHTML=''">Cancel</button>
+    <div class="strip four">${['5','4','NC'].map(k=>`<button class="chip" onclick="setRev('${id}','${mid}','${k}')">${k}</button>`).join('')}
+      <button class="chip quiet" onclick="$('sheet').innerHTML=''">Cancel</button></div>
     </div></div>`;
 }
 function setRev(id,mid,n){n=/^[0-9]$/.test(n)?+n:n;
@@ -604,6 +615,74 @@ function saveCfg(){
   S.cfg={url:$('url').value.trim(),token:$('tok').value.trim()};save();
   const id=V.sid; go('home');
   if(S.cfg.url&&S.cfg.token&&id)syncSection(id,true);
+}
+
+
+/* ---------- student records ---------- */
+function anyOpen(s,id){
+  return s.meetings.filter(m=>m.closed).filter(m=>{
+    const v=m.scores[id]||{}; return OWED.indexOf(v.code)>=0 && v.rev==null;
+  }).length;
+}
+function people(){
+  const s=sec(),sm=shortMap(s,true);
+  const rows=s.students.slice()
+    .sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first))
+    .map(st=>{
+      const n=anyOpen(s,st.id);
+      return `<button class="rv ${n?'none':''}" style="margin-bottom:6px"
+        onclick="V.hid='${st.id}';go('history')">
+        <span class="who">${esc(sm[st.id])}</span>
+        <span class="meta">${n?n+' open':''}</span></button>`}).join('');
+  $('app').innerHTML=head('Student records',esc(s.name),"go('home')")+
+    `<p class="sub">Every assignment stays reachable here, however long ago it was.</p>${rows}`;
+  bar(`<button class="btn ghost" onclick="go('home')">Done</button>`);
+}
+function history(){
+  const s=sec(),id=V.hid,st=stu(s,id);
+  const done=s.meetings.filter(m=>m.closed);
+  const tone=k=>k==='5'||k==='4'?'good':k==='NC'?'bad':k==='--'?'none':'code';
+  const rows=done.slice().reverse().map(m=>{
+    const v=m.scores[id]||{},k=markOf(v)||'--';
+    return `<button class="rv ${tone(k)}" style="margin-bottom:6px" onclick="editHist('${m.id}')">
+      <span class="mk">${esc(show(k))}</span>
+      <span class="who">${esc(m.title)}</span>
+      <span class="meta">${v.rev!=null?'→ '+esc(show(String(v.rev)))+' &nbsp;':''}${esc(m.date)}${m.synced?'':' · unsent'}</span>
+    </button>`}).join('');
+  $('app').innerHTML=head(label(st),esc(s.name),"go('people')")+
+    (done.length?`<p class="sub">Tap any assignment to change its score or add a regrade.</p>${rows}`
+      :'<div class="empty">No closed assignments yet.</div>');
+  bar(`<button class="btn ghost" onclick="go('people')">Back to students</button>`);
+}
+function editHist(mid){
+  const s=sec(),m=s.meetings.find(x=>x.id===mid),id=V.hid,v=m.scores[id]||{};
+  const btn=(k,kind)=>`<button class="chip ${markOf(v)===k&&kind==='s'?'on':''}"
+    onclick="setHist('${mid}','${kind}','${k}')">${show(k)}</button>`;
+  $('sheet').innerHTML=`<div class="sheet" onclick="if(event.target===this)$('sheet').innerHTML=''">
+    <div class="panel"><div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(m.title)}</div>
+    <p class="sub" style="margin:10px 0 6px">Score</p>
+    <div class="strip six">${['5','4','NC','AB','MU','--'].map(k=>btn(k,'s')).join('')}</div>
+    <p class="sub" style="margin:16px 0 6px">Regrade${v.rev!=null?' — now '+esc(show(String(v.rev))):''}</p>
+    <div class="strip">${['5','4','NC'].map(k=>btn(k,'r')).join('')}
+      <button class="chip quiet" onclick="setHist('${mid}','r','')">none</button>
+      <button class="chip quiet" onclick="$('sheet').innerHTML=''">Cancel</button></div>
+    </div></div>`;
+}
+function setHist(mid,kind,val){
+  const s=sec(),m=s.meetings.find(x=>x.id===mid),id=V.hid;
+  const v=Object.assign({},m.scores[id]||{});
+  if(kind==='s'){
+    delete v.val; delete v.code; delete v.auto; delete v.missed;
+    if(val==='--'){v.code='--';v.missed=true}
+    else if(/^[0-9]$/.test(val)){v.val=+val;v.touched=true}
+    else {v.code=val;v.touched=true}
+  }else{
+    if(val===''){delete v.rev;delete v.sent}
+    else {v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false}
+  }
+  m.scores[id]=v;
+  m.synced=false;              // re-push so the sheet matches the app
+  save();$('sheet').innerHTML='';render();
 }
 
 function go(v){V.view=v;render();window.scrollTo(0,0)}
