@@ -20,11 +20,16 @@ html,body{margin:0;height:100%}
 body{background:var(--ground);color:var(--ink);font-family:var(--sys);font-size:17px;line-height:1.4;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   -webkit-user-select:none;user-select:none;overscroll-behavior:none}
-#app{max-width:640px;margin:0 auto;padding:0 12px 180px}
+#app{max-width:640px;margin:0 auto;padding:0 12px 180px;overflow-x:hidden}
+html,body{max-width:100%;overflow-x:hidden}
 
-header{display:flex;align-items:baseline;gap:9px;padding:16px 2px 12px;position:sticky;top:0;background:var(--ground);z-index:5}
-h1{font-size:19px;font-weight:650;letter-spacing:-.2px;margin:0;flex:1}
-.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+header{display:flex;align-items:baseline;gap:9px;padding:16px 2px 12px;position:sticky;top:0;
+  background:var(--ground);z-index:5;max-width:100%;overflow:hidden}
+.back{flex:none}
+h1{font-size:19px;font-weight:650;letter-spacing:-.2px;margin:0;flex:1 1 auto;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sub{color:var(--muted);font-size:14px;margin:-4px 2px 14px}
 .back{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase}
 .cog{font-size:21px;color:var(--muted);padding:0 4px}
@@ -47,8 +52,12 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
 .btn.warn{background:var(--attention);color:#231603}
 .btn.danger{color:var(--flag);border-color:var(--flag)}
 
-textarea,input[type=text],input[type=date]{width:100%;background:var(--ground);border:1px solid var(--edge);
-  border-radius:11px;color:var(--ink);padding:13px;font-size:17px;-webkit-user-select:text;user-select:text}
+textarea,input[type=text],input[type=date]{width:100%;max-width:100%;min-width:0;background:var(--ground);
+  border:1px solid var(--edge);border-radius:11px;color:var(--ink);padding:13px;font-size:17px;
+  -webkit-user-select:text;user-select:text}
+input[type=date]{-webkit-appearance:none;appearance:none;display:block;height:50px;
+  font-family:var(--sys);text-align:left}
+input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
 textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1.5}
 
 .student{border-bottom:1px solid var(--edge);padding:10px 0}
@@ -67,16 +76,20 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .chip.dash{flex:none;width:48px;padding:9px 0;font-size:15px}
 .untouched .name{color:var(--attention)}
 
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 14px}
-.tab{padding:15px 0;border-radius:11px;border:1px solid var(--edge);text-align:center;
-  font-family:var(--mono);font-size:19px;font-weight:700;color:var(--muted)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 13px}
+.tab{width:100%;height:44px;padding:0;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:10px;border:1px solid var(--edge);
+  font-family:var(--mono);font-size:18px;font-weight:700;color:var(--muted)}
 .tab.todo{border-color:var(--attention);color:var(--attention)}
 .tab.done{color:var(--confirm);border-color:var(--edge)}
 .tab.now{background:var(--raised);color:var(--ink);border-color:var(--ink)}
 .tab.empty{opacity:.32}
 
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.att{background:var(--surface);border:1px solid var(--edge);border-radius:12px;padding:11px 10px;text-align:left}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px}
+.grid2>*{min-width:0;max-width:100%}
+.att{background:var(--surface);border:1px solid var(--edge);border-radius:12px;padding:11px 10px;
+  text-align:left;min-width:0;max-width:100%;overflow:hidden;box-sizing:border-box}
 .att:active{background:var(--raised)}
 .att .who{font-size:15px;font-weight:600;letter-spacing:-.15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .att .code{font-family:var(--mono);font-size:11.5px;margin-top:2px;color:var(--confirm)}
@@ -84,9 +97,11 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .att.gone{border-color:var(--flag)} .att.gone .code{color:var(--flag)}
 
 .rv{background:var(--surface);border:1px solid var(--edge);border-radius:11px;padding:10px;
-  display:flex;align-items:center;gap:8px;text-align:left;width:100%}
+  display:flex;align-items:center;gap:8px;text-align:left;
+  width:100%;min-width:0;max-width:100%;overflow:hidden;box-sizing:border-box}
+.rv .meta{flex:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rv:active{background:var(--raised)}
-.rv .who{flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv .who{flex:1 1 0;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rv .mk{font-family:var(--mono);font-size:15px;font-weight:700;width:32px;text-align:center;flex:none}
 .rv.good .mk{color:var(--confirm)} .rv.bad .mk{color:var(--flag)}
 .rv.info .mk{color:var(--info)} .rv.none{border-color:var(--attention)} .rv.none .mk{color:var(--attention)}
@@ -109,7 +124,7 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .sheet{position:fixed;inset:0;background:rgba(8,13,18,.72);z-index:50;display:flex;align-items:flex-end}
 .sheet .panel{background:var(--surface);border-top:1px solid var(--edge);border-radius:18px 18px 0 0;
   padding:16px 12px calc(16px + env(safe-area-inset-bottom));width:100%;max-width:640px;margin:0 auto;
-  max-height:86vh;overflow:auto}
+  max-height:86vh;overflow-y:auto;overflow-x:hidden}
 </style>
 </head>
 <body>
@@ -608,11 +623,16 @@ function setLate(id,val){
   h.scores[id]=v;h.synced=false;save();render();
 }
 function reviseSheet(id,hid){
-  const s=sec(),h=s.items.find(x=>x.id===hid);
-  panel(`<div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(h.title)}</div>
-    <h1 style="margin:6px 0 12px">Regrade</h1>
+  const s=sec(),h=s.items.find(x=>x.id===hid),v=h.scores[id]||{},cur=markOf(v)||'--';
+  panel(`<div class="eyebrow">${esc(label(stu(s,id)))}</div>
+    <div class="rv ${toneOf(cur)==='bad'?'bad':toneOf(cur)==='info'?'info':'none'}" style="margin:10px 0 4px">
+      <span class="mk">${esc(show(cur))}</span>
+      <span class="who">${esc(h.title)}</span>
+      <span class="meta">${esc(when(h.date))}</span></div>
+    <p class="sub" style="margin:12px 0 6px">Regrade</p>
     <div class="strip four">${['5','4','NC'].map(k=>
-      `<button class="chip" onclick="setRev('${id}','${hid}','${k}')">${k}</button>`).join('')}
+      `<button class="chip ${v.rev==(/^[0-9]$/.test(k)?+k:k)?'on '+toneOf(k):''}"
+        onclick="setRev('${id}','${hid}','${k}')">${k}</button>`).join('')}
       <button class="chip quiet" onclick="closeSheet()">Cancel</button></div>`);
 }
 function setRev(id,hid,val){
