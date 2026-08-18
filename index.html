@@ -415,8 +415,14 @@ VIEWS.section=function(){
       :`<div class="meta" style="margin-top:6px">No assignments logged today</div>`}</div>`;
   const others=live.filter(x=>x.date!==d);
   $('app').innerHTML=head(s.name,'',"go('home')",'Classes')+banner()+todayCard+
-    (others.length?`<div class="warnbox"><div class="meta" style="color:var(--attention)">
-      Unfinished from another day: ${others.map(x=>esc(x.title||when(x.date))).join(', ')}</div></div>`:'')+
+    (others.length?`<div class="card"><div class="eyebrow" style="color:var(--attention)">Unfinished</div>
+      ${others.map(x=>`<div class="rv none" style="margin-top:7px">
+        <span class="mk">…</span>
+        <button class="who" style="text-align:left" onclick="${x.kind==='session'
+          ? `V.iid='${x.id}';go('attendance')` : `openHwItem('${x.id}')`}">${esc(x.title||'Attendance')}</button>
+        <span class="meta">${esc(when(x.date))}</span>
+        <button class="chip quiet" style="width:66px;padding:7px 0" onclick="discard('${x.id}')">Discard</button>
+      </div>`).join('')}</div>`:'')+
     `<div class="grid2" style="margin-top:14px">
       <button class="card tap" onclick="go('late')" style="margin:0"><div class="name">Late work</div>
         <div class="meta">${openHw?openHw+' assignment'+(openHw===1?'':'s'):'nothing open'}</div></button>
@@ -432,6 +438,16 @@ VIEWS.section=function(){
       <button class="btn ghost" onclick="newHwSheet()">Grade an assignment</button>`);
 };
 
+function discard(id){
+  const s=sec(),x=s.items.find(i=>i.id===id);
+  if(!x)return;
+  const n=Object.keys(x.kind==='session'?(x.attendance||{}):(x.scores||{})).length;
+  if(!confirm(`Discard "${x.title||'attendance'}" from ${when(x.date)}?\n\n`+
+    `${n} mark${n===1?'':'s'} recorded. It was never closed, so nothing reached the sheet.`))return;
+  s.items=s.items.filter(i=>i.id!==id);
+  if(V.iid===id)V.iid=null;
+  save();render();
+}
 function newSession(){
   const s=sec(),d=today();
   const it={id:uid(),kind:'session',date:d,attendance:{},closed:false,synced:false};
