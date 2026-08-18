@@ -72,6 +72,8 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .chip.on.low{background:var(--flag);border-color:var(--flag);color:#2A0D0B}
 .chip.on.info{background:var(--info);border-color:var(--info);color:#08152E}
 .chip.on.warn{background:var(--attention);border-color:var(--attention);color:#231603}
+.chip.on.ex{background:var(--muted);border-color:var(--muted);color:#101922}
+.rv.ex .mk{color:var(--muted)} .rv.ex .who{color:var(--muted)}
 .chip.quiet{color:var(--muted);font-size:13px}
 .chip.dash{flex:none;width:48px;padding:9px 0;font-size:15px}
 .untouched .name{color:var(--attention)}
@@ -138,7 +140,9 @@ const MARKS=[['5','complete','good'],['4','mostly complete','good'],
              ['NC','not complete','bad'],['MU','absent when assigned','info'],
              ['AB','absent today','info']];
 const DASH=['--','not checked','warn'];
-const ALL=MARKS.concat([DASH]);
+const EXCUSED=['EX','excused — does not count','ex'];
+const ALL=MARKS.concat([DASH]);        // what you reach while grading
+const ALLX=ALL.concat([EXCUSED]);      // plus excused, in Records only
 const ATT=[['AB','absent'],['T','tardy'],['TE','excused tardy'],['TX','excessive tardy'],['P','present']];
 const ABSENT=['AB','TX'];              // these fill a homework AB
 const TABLEQ=['AB','MU','--'];         // interrupts you at the table
@@ -152,8 +156,8 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid=()=>Math.random().toString(36).slice(2,9);
 const show=k=>k==='--'?'—':k;
-const nameOf=k=>(ALL.find(x=>x[0]===k)||[,''])[1]||k;
-const toneOf=k=>(ALL.find(x=>x[0]===k)||[,,''])[2]||'';
+const nameOf=k=>(ALLX.find(x=>x[0]===k)||[,''])[1]||k;
+const toneOf=k=>(ALLX.find(x=>x[0]===k)||[,,''])[2]||'';
 
 /* Local dates throughout — toISOString() is UTC and rolls a US evening into tomorrow. */
 function today(){const d=new Date();return iso(d.getFullYear(),d.getMonth()+1,d.getDate())}
@@ -217,6 +221,15 @@ function migrate(s){
     delete s.meetings;
   }
   s.students=s.students||[];
+  // older builds recorded a joiner as a count; make it an explicit mark instead
+  const wasClosed=s.items.filter(x=>x.kind==='hw'&&x.closed);
+  s.students.forEach(st=>{
+    if(st.from==null)return;
+    wasClosed.slice(0,st.from).forEach(h=>{
+      if(h.scores[st.id]===undefined){h.scores[st.id]={code:'EX',touched:true};h.synced=false}
+    });
+    delete st.from;
+  });
   s.tables=padTables(s.tables);
 }
 function padTables(t){
@@ -294,8 +307,15 @@ const label=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
 const seatName=st=>st?`${(st.pref||st.first||'').trim()} ${(st.last||'').trim().charAt(0)}.`.trim():'';
 /* what goes in column P — the whole name, so you can shorten it yourself in O */
 const fullSeat=st=>st?`${(st.pref||st.first||'').trim()} ${(st.last||'').trim()}`.trim():'';
-const hws=s=>s.items.filter(x=>x.kind==='hw');
-const sessions=s=>s.items.filter(x=>x.kind==='session');
+/* Everything lists by the date on the record, not the order you made it — so a
+   stack graded on Wednesday for Monday's work sits with Monday's. Same-day
+   records keep the order you created them in. */
+function inDateOrder(s,list){
+  const ix={};s.items.forEach((x,i)=>{ix[x.id]=i});
+  return list.slice().sort((a,b)=>a.date===b.date?ix[a.id]-ix[b.id]:(a.date<b.date?-1:1));
+}
+const hws=s=>inDateOrder(s,s.items.filter(x=>x.kind==='hw'));
+const sessions=s=>inDateOrder(s,s.items.filter(x=>x.kind==='session'));
 const sessionOn=(s,d)=>sessions(s).filter(x=>x.date===d).slice(-1)[0];
 const hwsOn=(s,d)=>hws(s).filter(x=>x.date===d);
 const markOf=v=>v?(v.code||(v.val!=null?String(v.val):null)):null;
@@ -311,11 +331,7 @@ const tableIds=(s,i)=>s.tables[i].filter(Boolean).filter(id=>{const st=stu(s,id)
 /* what a student still owes — no expiry, NC included */
 function closedHws(s){return hws(s).filter(h=>h.closed)}
 function openList(s,id){
-  const st=stu(s,id),from=(st&&st.from)||0;
-  // index against closed assignments only — an unfinished one in the middle
-  // used to shift the enrolment cutoff and chase joiners for work predating them
-  return closedHws(s).filter((h,i)=>{
-    if(i<from)return false;
+  return closedHws(s).filter(h=>{
     const v=h.scores[id]||{};
     return OPEN.includes(v.code)&&v.rev==null;
   });
@@ -393,8 +409,13 @@ VIEWS.home=function(){
       </div>${un?`<span class="meta" style="color:var(--attention)">${un} unsent</span>`:''}</div>
       ${sess?`<div class="meta" style="margin-top:7px;color:var(--confirm)">Attendance taken ${esc(when(d))}${hw.length?` · ${hw.length} assignment${hw.length===1?'':'s'} today`:''}</div>`:''}
     </button>`}).join('');
+  const age=backupAge();
+  const stale=age===null||age>10;
   $('app').innerHTML=head('Homework Check','classes',null,null,
       `<button class="cog" onclick="go('menu')">⚙</button>`)+banner()+
+    (S.cfg.url?`<div class="meta" style="text-align:center;margin:-4px 0 10px;
+       ${stale?'color:var(--attention)':''}">Last backup: ${age===null?'never':
+       age===0?'today':age===1?'yesterday':age+' days ago'}</div>`:'')+
     (S.sections.length?list:'<div class="empty">No classes yet.<br>Add one from the ⚙ menu.</div>')+
     (S.cfg.url?'':`<div class="warnbox"><div class="meta" style="color:var(--attention)">Sheet sync not set up — scores stay on this phone.</div></div>`);
   bar(stuck?`<button class="btn" onclick="syncAll()">Send ${stuck} to the sheet</button>`:'');
@@ -590,7 +611,7 @@ VIEWS.review=function(){
                   :s.tables.flat().filter(Boolean).filter(id=>{const st=stu(s,id);return st&&!st.out});
   const cells=order.map(id=>{
     const st=stu(s,id),v=it.scores[id]||{},k=markOf(v)||'--';
-    return `<button class="rv ${toneOf(k)==='good'?'good':toneOf(k)==='bad'?'bad':toneOf(k)==='info'?'info':'none'}"
+    return `<button class="rv ${['good','bad','info','ex'].includes(toneOf(k))?toneOf(k):'none'}"
       onclick="pickAny('${id}')"><span class="mk">${esc(show(k))}</span>
       <span class="who">${esc(label(st))}</span>${v.auto?'<span class="meta">auto</span>':''}</button>`}).join('');
   const count={};act(s).forEach(st=>{const k=markOf(it.scores[st.id]||{})||'--';count[k]=(count[k]||0)+1});
@@ -631,9 +652,9 @@ function fillRest(k){
   it.synced=false;save();closeSheet();render();
 }
 function pickAny(id){
-  const s=sec();
+  const s=sec(),it=item();
   panel(`<div class="eyebrow">${esc(label(stu(s,id)))}</div>
-    ${ALL.map(([k,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
+    ${(it.closed?ALLX:ALL).map(([k,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
       onclick="setMark('${id}','${k}');closeSheet()"><b style="font-family:var(--mono)">${show(k)}</b> &nbsp; ${n}</button>`).join('')}`);
 }
 function renameSheet(){
@@ -773,12 +794,10 @@ VIEWS.people=function(){
   bar('');
 };
 VIEWS.history=function(){
-  const s=sec(),id=V.hid,st=stu(s,id),from=st.from||0;
-  const rows=closedHws(s).map((h,i)=>({h,pre:i<from})).reverse().map(o=>{
+  const s=sec(),id=V.hid,st=stu(s,id);
+  const rows=closedHws(s).slice().reverse().map(h=>({h:h})).map(o=>{
     const v=o.h.scores[id]||{},k=markOf(v)||'--';
-    if(o.pre)return `<div class="rv" style="margin-bottom:6px;opacity:.5"><span class="mk" style="font-size:11px">n/e</span>
-      <span class="who">${esc(o.h.title)}</span><span class="meta">not enrolled</span></div>`;
-    return `<button class="rv ${toneOf(k)==='good'?'good':toneOf(k)==='bad'?'bad':toneOf(k)==='info'?'info':'none'}"
+    return `<button class="rv ${['good','bad','info','ex'].includes(toneOf(k))?toneOf(k):'none'}"
       style="margin-bottom:6px" onclick="editHist('${o.h.id}')">
       <span class="mk">${esc(show(k))}</span><span class="who">${esc(o.h.title)}</span>
       <span class="meta">${v.rev!=null?'→ '+esc(show(String(v.rev)))+' ':''}${esc(when(o.h.date))}${o.h.synced?'':' · unsent'}</span></button>`}).join('');
@@ -793,7 +812,7 @@ function editHist(hid){
   const s=sec(),h=s.items.find(x=>x.id===hid),id=V.hid,v=h.scores[id]||{};
   panel(`<div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(h.title)}</div>
     <p class="sub" style="margin:10px 0 6px">Score</p>
-    <div class="strip six">${ALL.map(([k])=>`<button class="chip ${markOf(v)===k?'on '+toneOf(k):''}"
+    <div class="strip six">${ALLX.map(([k])=>`<button class="chip ${markOf(v)===k?'on '+toneOf(k):''}"
       onclick="setHist('${hid}','s','${k}')">${show(k)}</button>`).join('')}</div>
     <p class="sub" style="margin:15px 0 6px">Regrade${v.rev!=null?' — now '+esc(show(String(v.rev))):''}</p>
     <div class="strip">${['5','4','NC'].map(k=>`<button class="chip" onclick="setHist('${hid}','r','${k}')">${k}</button>`).join('')}
@@ -921,9 +940,9 @@ VIEWS.roster=function(){
      <button class="btn sm ghost" style="margin-top:7px" onclick="addOne()">Add student</button>
      <p class="sub" style="margin-top:20px">Or paste several — one per line, from your gradebook.
        Typed by hand, "Brian Cox" works too.</p>
-     <textarea id="more" placeholder="Cox, Brian"></textarea>`;
-  bar(`<button class="btn" onclick="addStudents()">Add</button>
-       <div class="grid2"><button class="btn ghost sm danger" onclick="dropSection()">Delete class</button>
+     <textarea id="more" placeholder="Cox, Brian"></textarea>
+     <button class="btn sm ghost" style="margin-top:7px" onclick="addStudents()">Add pasted list</button>`;
+  bar(`<div class="grid2"><button class="btn ghost sm danger" onclick="dropSection()">Delete class</button>
        <button class="btn ghost sm" onclick="go('section')">Done</button></div>`);
 };
 function addOne(){
@@ -942,8 +961,13 @@ function addPeople(fresh){
   const have=s.students.map(k);
   fresh=(fresh||[]).filter(n=>!have.includes(k(n)));
   if(!fresh.length)return alert('No new names found.');
-  const from=closedHws(s).length;
-  fresh.forEach(st=>{st.from=from;s.students.push(st);place(s.tables,st.id)});
+  fresh.forEach(st=>{s.students.push(st);place(s.tables,st.id)});
+  // everything already closed is excused for them — no make-up owed
+  closedHws(s).forEach(h=>{
+    let hit=false;
+    fresh.forEach(st=>{if(h.scores[st.id]===undefined){h.scores[st.id]={code:'EX',touched:true};hit=true}});
+    if(hit)h.synced=false;
+  });
   const d=dupes(s.students);
   if(d.length)alert('Warning — duplicate name: '+d.map(g=>label(g[0])).join(', ')+
     '. They will look identical everywhere. Consider adding a middle initial.');
@@ -1032,7 +1056,7 @@ async function syncSection(id,quiet){
     students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,
       seat:seatName(st),full:fullSeat(st)})),
     items:pend.map(x=>{
-      const o={kind:x.kind,date:x.date,label:sheetWhen(x.date)};
+      const o={kind:x.kind,date:x.date,iso:x.date,label:sheetWhen(x.date)};
       if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
       else{o.title=x.title;o.scores={};
         s.students.forEach(st=>{const v=x.scores[st.id];
@@ -1078,6 +1102,12 @@ VIEWS.backup=function(){
      <p class="sub" style="margin-top:20px">Restore — replaces everything on this phone.</p>
      <textarea id="load" style="min-height:80px" placeholder='{"sections":[...]}'></textarea>
      <button class="btn sm ghost" onclick="restoreAll()">Restore</button>
+     <p class="sub" style="margin-top:20px">Drive — a copy lands in "Homework Check backups"
+       once a week when you open the app. The last ${8} are kept. These leave out your
+       sheet URL and token, so you re-enter those after a restore.</p>
+     <div class="meta" style="margin-bottom:7px">Last backup: ${backupAge()===null?'never'
+       :backupAge()===0?'today':backupAge()+' days ago'}${S.backupName?' · '+esc(S.backupName):''}</div>
+     <button class="btn sm ghost" onclick="backupNow()">Back up to Drive now</button>
      <p class="sub" style="margin-top:20px">Resend everything — use after tidying columns in the
        sheet by hand, to rewrite them from this phone.</p>
      <button class="btn sm ghost" onclick="resendAll()">Resend all classes</button>`;
@@ -1085,11 +1115,44 @@ VIEWS.backup=function(){
       (pend?`<button class="btn ghost sm" onclick="markSent()">Clear ${pend} regrade highlight${pend===1?'':'s'}</button>`:'')+
       `<button class="btn ghost sm" onclick="go('menu')">Done</button>`);
 };
+const WEEK=7*24*60*60*1000;
+/* Data only — never the URL or token. These files live in Drive indefinitely,
+   and the token is write access to the gradebook. */
+const backupBlob=()=>JSON.stringify({sections:S.sections,cfg:{}});
+function backupAge(){
+  if(!S.lastBackup)return null;
+  return Math.floor((Date.now()-S.lastBackup)/86400000);
+}
+/* Fires when the app opens and the last copy is over a week old. Never blocks
+   anything: a failure just leaves the age showing on the home screen. */
+async function autoBackup(){
+  const c=S.cfg;
+  if(!c.url||!c.token)return;
+  if(S.lastBackup&&Date.now()-S.lastBackup<WEEK)return;
+  if(V.backingUp)return;
+  V.backingUp=true;
+  try{
+    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:c.token,action:'backup',blob:backupBlob()})});
+    const d=await r.json();
+    if(d.ok){S.lastBackup=Date.now();S.backupName=d.saved;saveAll();
+      if(V.view==='home'||V.view==='backup')render()}
+  }catch(e){}
+  V.backingUp=false;
+}
 function makeBackup(){
   const el=$('dump');
-  el.value=JSON.stringify({sections:S.sections,cfg:S.cfg});
+  el.value=JSON.stringify({sections:S.sections,cfg:S.cfg});   // by hand: keep the token
   copyBox('dump');
   V.ok='Backup copied — paste it into an email to yourself.';render();
+}
+async function backupNow(){
+  V.busy='Saving to Drive…';V.err=V.ok=null;render();
+  S.lastBackup=null;await autoBackup();
+  V.busy=null;
+  if(S.lastBackup)V.ok='Saved to Drive — '+esc(S.backupName||'');
+  else V.err='Could not reach Drive. Copy the backup by hand instead.';
+  render();
 }
 function copyBox(id){
   const el=$(id);el.select&&el.select();el.setSelectionRange&&el.setSelectionRange(0,999999);
@@ -1112,6 +1175,7 @@ function restoreAll(){
 }
 
 render();
+autoBackup();
 </script>
 </body>
 </html>
