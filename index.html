@@ -146,6 +146,7 @@ const OPEN=['NC','AB','MU','--'];      // counts as owed in records & late work
 const CARRY=2;                         // table interruptions expire after this many assignments
 const TABLES=6, SEATS=4;
 const DAYS=['Su','M','T','W','Th','F','Sa'];
+const DAYL=['Sun','Mon','Tues','Wed','Thurs','Fri','Sat'];
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -161,6 +162,12 @@ function when(s){
   const p=String(s||'').split('-').map(Number);
   if(p.length<3||!p[0])return String(s||'');
   return DAYS[new Date(p[0],p[1]-1,p[2]).getDay()]+' '+String(p[1]).padStart(2,'0')+'-'+String(p[2]).padStart(2,'0');
+}
+/* what the spreadsheet header shows: Mon 08/17 */
+function sheetWhen(s){
+  const p=String(s||'').split('-').map(Number);
+  if(p.length<3||!p[0])return String(s||'');
+  return DAYL[new Date(p[0],p[1]-1,p[2]).getDay()]+' '+String(p[1]).padStart(2,'0')+'/'+String(p[2]).padStart(2,'0');
 }
 
 /* ============ state ============ */
@@ -283,6 +290,8 @@ const stu=(s,id)=>s.students.find(x=>x.id===id);
 const act=s=>s.students.filter(st=>!st.out);
 const gone=s=>s.students.filter(st=>st.out);
 const label=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
+/* the seating chart always uses what they go by: "Alex B." */
+const seatName=st=>st?`${(st.pref||st.first||'').trim()} ${(st.last||'').trim().charAt(0)}.`.trim():'';
 const hws=s=>s.items.filter(x=>x.kind==='hw');
 const sessions=s=>s.items.filter(x=>x.kind==='session');
 const sessionOn=(s,d)=>sessions(s).filter(x=>x.date===d).slice(-1)[0];
@@ -579,12 +588,12 @@ VIEWS.review=function(){
     (un?`<span class="warn">not checked · ${un}</span>`:'');
   $('app').innerHTML=head(it.closed?'Scores':'Review',esc(it.title)+' · '+when(it.date),
       it.stack?"go('section')":"go('grade')",it.stack?'Class':'Tables')+banner()+
-    `<div class="tally">${tally}
+    `<div class="grid2">${cells}</div>
+     ${un&&!it.closed?`<div class="warnbox" style="margin-top:11px"><div class="meta" style="color:var(--attention)">
+       ${un} unchecked. They stay blank and show up in Late work — no score is invented.</div></div>`:''}
+     <div class="tally" style="margin:14px 0 0">${tally}
        <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">${V.az?'A–Z':'by table'} ⇅</span>
-       <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span></div>
-     <div class="grid2">${cells}</div>`+
-    (un&&!it.closed?`<div class="warnbox" style="margin-top:11px"><div class="meta" style="color:var(--attention)">
-      ${un} unchecked. They stay blank and show up in Late work — no score is invented.</div></div>`:'');
+       <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span></div>`;
   bar(it.closed
     ? `<button class="btn ghost" onclick="go('section')">Done</button>`
     : `<button class="btn ${un?'warn':''}" onclick="closeHw()">Close ${esc(it.title)}</button>`);
@@ -801,6 +810,8 @@ VIEWS.roster=function(){
        <input type="text" id="nlast" placeholder="Last name" autocomplete="off">
        <input type="text" id="nfirst" placeholder="First name" autocomplete="off">
      </div>
+     <div style="height:7px"></div>
+     <input type="text" id="npref" placeholder="Goes by (if different from first name)" autocomplete="off">
      <button class="btn sm ghost" style="margin-top:7px" onclick="addOne()">Add student</button>
      <p class="sub" style="margin-top:20px">Or paste several — one per line, from your gradebook.
        Typed by hand, "Brian Cox" works too.</p>
@@ -810,9 +821,9 @@ VIEWS.roster=function(){
        <button class="btn ghost sm" onclick="go('section')">Done</button></div>`);
 };
 function addOne(){
-  const l=($('nlast').value||'').trim(),f=($('nfirst').value||'').trim();
+  const l=($('nlast').value||'').trim(),f=($('nfirst').value||'').trim(),p=($('npref').value||'').trim();
   if(!l&&!f)return alert('Enter at least a last name.');
-  addPeople([{id:uid(),last:l,first:f}]);
+  addPeople([{id:uid(),last:l,first:f,pref:p}]);
 }
 function addStudents(){
   const s=sec(),k=st=>(st.last+'|'+st.first).trim().toLowerCase();
@@ -839,6 +850,8 @@ function editName(id){
       <input type="text" id="elast" value="${esc(st.last)}" placeholder="Last name" autocomplete="off">
       <input type="text" id="efirst" value="${esc(st.first)}" placeholder="First name" autocomplete="off">
     </div>
+    <div style="height:7px"></div>
+    <input type="text" id="epref" value="${esc(st.pref||'')}" placeholder="Goes by (for the seating chart)" autocomplete="off">
     <div class="meta" style="margin-top:9px">The sheet keys rows on the name, so a corrected name
       gets a fresh row — delete the old one there by hand.</div>
     <button class="btn" onclick="saveName('${id}')">Save</button>
@@ -846,9 +859,9 @@ function editName(id){
 }
 function saveName(id){
   const s=sec(),st=stu(s,id);
-  const l=($('elast').value||'').trim(),f=($('efirst').value||'').trim();
+  const l=($('elast').value||'').trim(),f=($('efirst').value||'').trim(),p=($('epref').value||'').trim();
   if(!l&&!f)return alert('Enter at least a last name.');
-  st.last=l;st.first=f;
+  st.last=l;st.first=f;st.pref=p;
   s.items.forEach(x=>{if(x.closed)x.synced=false});   // rewrite under the new name
   save();closeSheet();render();
 }
@@ -910,9 +923,9 @@ async function syncSection(id,quiet){
   const key=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
   const kk={};s.students.forEach(st=>kk[st.id]=key(st));
   const payload={token:c.token,section:s.name,
-    students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first})),
+    students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,seat:seatName(st)})),
     items:pend.map(x=>{
-      const o={kind:x.kind,date:x.date,label:when(x.date)};
+      const o={kind:x.kind,date:x.date,label:sheetWhen(x.date)};
       if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
       else{o.title=x.title;o.scores={};
         s.students.forEach(st=>{const v=x.scores[st.id];
