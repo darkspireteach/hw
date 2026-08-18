@@ -603,12 +603,15 @@ VIEWS.lateone=function(){
   const who=owedIndex(s)[h.id]||[];
   const rows=who.slice().sort(byName).map(st=>{
     const v=h.scores[st.id]||{},k=markOf(v)||'--';
+    const orig=fillsOriginal(v);
     return `<div class="student"><div class="row"><div class="grow">
       <div class="name trunc">${esc(label(st))}</div>
-      <div class="meta">${esc(nameOf(k))}${v.rev!=null?' → '+esc(show(String(v.rev))):''}</div></div></div>
-      <div class="strip four">${['5','4','NC'].map(x=>
-        `<button class="chip ${v.rev==(/^[0-9]$/.test(x)?+x:x)?'on '+toneOf(x):''}"
-          onclick="setLate('${st.id}','${x}')">${x}</button>`).join('')}
+      <div class="meta">${esc(nameOf(k))}${v.rev!=null?' → '+esc(show(String(v.rev))):''}
+        · ${orig?'fills the original':'regrade'}</div></div></div>
+      <div class="strip four">${['5','4','NC'].map(x=>{
+        const on=orig?markOf(v)===x:v.rev==(/^[0-9]$/.test(x)?+x:x);
+        return `<button class="chip ${on?'on '+toneOf(x):''}"
+          onclick="setLate('${st.id}','${x}')">${x}</button>`}).join('')}
         <button class="chip quiet" onclick="setLate('${st.id}','')">clear</button></div>
     </div>`}).join('');
   $('app').innerHTML=head(h.title,when(h.date),"go('late')",'Late work')+
@@ -616,11 +619,24 @@ VIEWS.lateone=function(){
       <div class="card">${rows}</div>`:'<div class="empty">All caught up on this one.</div>');
   bar(`<button class="btn ghost" onclick="go('late')">Done</button>`);
 };
+/* A gap the student caused (AB, MU, NC) is made-up work, so it becomes a regrade.
+   A gap I caused — the dash, never checked — has no original score yet, so the
+   mark belongs in the original column instead. */
+function fillsOriginal(v){return markOf(v)==='--'||!markOf(v)}
+function applyScore(h,id,val){
+  const v=Object.assign({},h.scores[id]||{});
+  if(fillsOriginal(v)){
+    delete v.missed;delete v.rev;delete v.sent;delete v.code;delete v.val;delete v.auto;
+    if(val!==''){if(/^[0-9]$/.test(val))v.val=+val;else v.code=val;v.touched=true}
+    else{v.code='--';v.missed=true}
+  }else{
+    if(val===''){delete v.rev;delete v.sent}
+    else{v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false}
+  }
+  h.scores[id]=v;h.synced=false;
+}
 function setLate(id,val){
-  const h=item(),v=Object.assign({},h.scores[id]||{});
-  if(val===''){delete v.rev;delete v.sent}
-  else{v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false}
-  h.scores[id]=v;h.synced=false;save();render();
+  const h=item();applyScore(h,id,val);save();render();
 }
 function reviseSheet(id,hid){
   const s=sec(),h=s.items.find(x=>x.id===hid),v=h.scores[id]||{},cur=markOf(v)||'--';
@@ -629,16 +645,18 @@ function reviseSheet(id,hid){
       <span class="mk">${esc(show(cur))}</span>
       <span class="who">${esc(h.title)}</span>
       <span class="meta">${esc(when(h.date))}</span></div>
-    <p class="sub" style="margin:12px 0 6px">Regrade</p>
-    <div class="strip four">${['5','4','NC'].map(k=>
-      `<button class="chip ${v.rev==(/^[0-9]$/.test(k)?+k:k)?'on '+toneOf(k):''}"
-        onclick="setRev('${id}','${hid}','${k}')">${k}</button>`).join('')}
+    <p class="sub" style="margin:12px 0 6px">${fillsOriginal(v)
+      ? 'Score — this fills the original column, since nothing was ever recorded'
+      : 'Regrade — the original stays as it is'}</p>
+    <div class="strip four">${['5','4','NC'].map(k=>{
+      const on=fillsOriginal(v)?markOf(v)===k:v.rev==(/^[0-9]$/.test(k)?+k:k);
+      return `<button class="chip ${on?'on '+toneOf(k):''}"
+        onclick="setRev('${id}','${hid}','${k}')">${k}</button>`}).join('')}
       <button class="chip quiet" onclick="closeSheet()">Cancel</button></div>`);
 }
 function setRev(id,hid,val){
-  const s=sec(),h=s.items.find(x=>x.id===hid),v=Object.assign({},h.scores[id]||{});
-  v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false;
-  h.scores[id]=v;h.synced=false;save();closeSheet();render();
+  const s=sec(),h=s.items.find(x=>x.id===hid);
+  applyScore(h,id,val);save();closeSheet();render();
 }
 
 /* ============ student records ============ */
@@ -867,7 +885,10 @@ VIEWS.backup=function(){
      <button class="btn sm" onclick="makeBackup()">Copy backup</button>
      <p class="sub" style="margin-top:20px">Restore — replaces everything on this phone.</p>
      <textarea id="load" style="min-height:80px" placeholder='{"sections":[...]}'></textarea>
-     <button class="btn sm ghost" onclick="restoreAll()">Restore</button>`;
+     <button class="btn sm ghost" onclick="restoreAll()">Restore</button>
+     <p class="sub" style="margin-top:20px">Resend everything — use after tidying columns in the
+       sheet by hand, to rewrite them from this phone.</p>
+     <button class="btn sm ghost" onclick="resendAll()">Resend all classes</button>`;
   bar((stuck?`<button class="btn" onclick="syncAll()">Send ${stuck} to the sheet</button>`:'')+
       (pend?`<button class="btn ghost sm" onclick="markSent()">Clear ${pend} regrade highlight${pend===1?'':'s'}</button>`:'')+
       `<button class="btn ghost sm" onclick="go('menu')">Done</button>`);
@@ -881,6 +902,12 @@ function makeBackup(){
 function copyBox(id){
   const el=$(id);el.select&&el.select();el.setSelectionRange&&el.setSelectionRange(0,999999);
   if(navigator.clipboard)navigator.clipboard.writeText(el.value).catch(()=>{});
+}
+function resendAll(){
+  const n=S.sections.reduce((a,s)=>a+s.items.filter(x=>x.closed).length,0);
+  if(!confirm(`Resend ${n} record${n===1?'':'s'} to the sheet?\n\nExisting columns are overwritten with what this phone holds.`))return;
+  S.sections.forEach(s=>s.items.forEach(x=>{if(x.closed)x.synced=false}));
+  saveAll();syncAll();
 }
 function restoreAll(){
   let o;
