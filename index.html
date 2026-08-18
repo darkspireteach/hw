@@ -292,6 +292,8 @@ const gone=s=>s.students.filter(st=>st.out);
 const label=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
 /* the seating chart always uses what they go by: "Alex B." */
 const seatName=st=>st?`${(st.pref||st.first||'').trim()} ${(st.last||'').trim().charAt(0)}.`.trim():'';
+/* what goes in column P — the whole name, so you can shorten it yourself in O */
+const fullSeat=st=>st?`${(st.pref||st.first||'').trim()} ${(st.last||'').trim()}`.trim():'';
 const hws=s=>s.items.filter(x=>x.kind==='hw');
 const sessions=s=>s.items.filter(x=>x.kind==='session');
 const sessionOn=(s,d)=>sessions(s).filter(x=>x.date===d).slice(-1)[0];
@@ -803,7 +805,14 @@ async function pullSeats(){
     V.busy=null;
     if(!d.ok){V.err=d.error||'Could not read the seating chart.';render();return}
     const key=n=>String(n||'').replace(/\s+/g,' ').trim().toLowerCase();
-    const byName={};act(s).forEach(st=>{byName[key(seatName(st))]=st.id});
+    // a seat cell can hold your wording from column O, the app's full name,
+    // or the plain "First L." — all three resolve to the same student
+    const byName={};
+    act(s).forEach(st=>{byName[key(seatName(st))]=st.id;byName[key(fullSeat(st))]=st.id});
+    (d.alias||[]).forEach(([shown,appName])=>{
+      const id=byName[key(appName)];
+      if(id&&!byName[key(shown)])byName[key(shown)]=id;
+    });
     const fresh=[],missed=[];let placed=0;
     for(let t=1;t<=TABLES;t++){
       const names=d.tables[t]||d.tables[String(t)]||[];
@@ -962,7 +971,8 @@ async function syncSection(id,quiet){
   const key=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
   const kk={};s.students.forEach(st=>kk[st.id]=key(st));
   const payload={token:c.token,section:s.name,
-    students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,seat:seatName(st)})),
+    students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,
+      seat:seatName(st),full:fullSeat(st)})),
     items:pend.map(x=>{
       const o={kind:x.kind,date:x.date,label:sheetWhen(x.date)};
       if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
