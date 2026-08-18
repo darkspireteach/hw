@@ -429,7 +429,9 @@ VIEWS.menu=function(){
      <button class="card tap" onclick="go('sync')"><div class="name">Sheet sync</div>
        <div class="meta">${S.cfg.url?'Connected':'Not set up'}</div></button>
      <button class="card tap" onclick="go('backup')"><div class="name">Backup &amp; restore</div>
-       <div class="meta">All classes${stuck?' · '+stuck+' unsent':''}</div></button>`;
+       <div class="meta">All classes${stuck?' · '+stuck+' unsent':''}</div></button>
+     <button class="card tap" onclick="forceUpdate()"><div class="name">Check for an update</div>
+       <div class="meta">Running build ${esc(BUILD)}</div></button>`;
   bar('');
 };
 
@@ -1116,6 +1118,14 @@ VIEWS.backup=function(){
       `<button class="btn ghost sm" onclick="go('menu')">Done</button>`);
 };
 const WEEK=7*24*60*60*1000;
+/* Bump on every release. A home-screen app caches its page separately from
+   Safari and will happily run an old build for hours, so make it say which. */
+const BUILD='2026-08-18 · 14';
+/* Reloading with a fresh query string bypasses the cache. Same origin, so
+   nothing stored is touched. */
+function forceUpdate(){
+  location.replace(location.pathname+'?v='+Date.now());
+}
 /* Data only — never the URL or token. These files live in Drive indefinitely,
    and the token is write access to the gradebook. */
 const backupBlob=()=>JSON.stringify({sections:S.sections,cfg:{}});
