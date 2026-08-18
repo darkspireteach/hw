@@ -764,13 +764,16 @@ VIEWS.seats=function(){
         onclick="pickSeat(${t},${k})">${st&&!st.out?esc(label(st)):'—'}</button>`}).join('')}
     </div>`).join('');
   const u=unseated(s);
-  $('app').innerHTML=head('Seating',esc(s.name),"go('section')",'Class')+
-    `<p class="sub">Laid out as you see the room from the front. Empty seats are fine.</p>
+  $('app').innerHTML=head('Seating',esc(s.name),"go('section')",'Class')+banner()+
+    `<p class="sub">Laid out as you see the room. Arrange it in the sheet, then pull it in here.</p>
      <div class="grid2" style="gap:7px;grid-template-columns:1fr 1fr 1fr">${grid}</div>`+
     (u.length?`<div class="warnbox" style="margin-top:12px"><div class="meta" style="color:var(--attention)">
       ${u.length} not seated: ${u.slice().sort(byName).map(x=>esc(label(x))).join(', ')}</div></div>`:'');
-  bar(`<button class="btn ghost" onclick="autoSeat()">Fill empty seats A–Z</button>
-       <button class="btn ghost sm" onclick="go('section')">Done</button>`);
+  bar(`<button class="btn" onclick="pullSeats()">Pull from the sheet</button>
+       <div class="grid2">
+         <button class="btn ghost sm" onclick="autoSeat()">Fill empty A–Z</button>
+         <button class="btn ghost sm" onclick="go('section')">Done</button>
+       </div>`);
 };
 function pickSeat(t,k){
   const s=sec(),cur=s.tables[t][k];
@@ -785,6 +788,42 @@ function setSeat(t,k,id){
   const s=sec();
   if(id)s.tables.forEach(r=>r.forEach((v,j)=>{if(v===id)r[j]=null}));
   s.tables[t][k]=id||null;save();closeSheet();render();
+}
+/* Read the arrangement back out of the seat tab. Names there are the ones the
+   app wrote into column P, so they should match exactly; anything that doesn't
+   is reported rather than guessed at. */
+async function pullSeats(){
+  const s=sec(),c=S.cfg;
+  if(!c.url||!c.token){alert('Connect your sheet first — Settings, Sheet sync.');return}
+  V.busy='Reading the seating chart…';V.err=V.ok=null;render();
+  try{
+    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:c.token,action:'seats',section:s.name})});
+    const d=await r.json();
+    V.busy=null;
+    if(!d.ok){V.err=d.error||'Could not read the seating chart.';render();return}
+    const key=n=>String(n||'').replace(/\s+/g,' ').trim().toLowerCase();
+    const byName={};act(s).forEach(st=>{byName[key(seatName(st))]=st.id});
+    const fresh=[],missed=[];let placed=0;
+    for(let t=1;t<=TABLES;t++){
+      const names=d.tables[t]||d.tables[String(t)]||[];
+      const row=[];
+      for(let k=0;k<SEATS;k++){
+        const n=names[k]||'';
+        if(!n){row.push(null);continue}
+        const id=byName[key(n)];
+        if(id){row.push(id);placed++}else{row.push(null);missed.push(n)}
+      }
+      fresh.push(row);
+    }
+    s.tables=fresh;save();
+    const left=unseated(s).length;
+    V.ok=`Seated ${placed}`+(left?` · ${left} not on the chart`:'')+
+      (missed.length?` · couldn't match: ${missed.join(', ')}`:'');
+    render();
+  }catch(e){
+    V.busy=null;V.err='Could not reach the sheet. Your current seating is unchanged.';render();
+  }
 }
 function autoSeat(){
   const s=sec();
