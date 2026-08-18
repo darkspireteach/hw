@@ -530,10 +530,10 @@ VIEWS.grade=function(){
   const ids=tableIds(s,i);
   const rows=ids.map(id=>gradeRow(s,it,id)).join('')||'<div class="empty">No one at this table.</div>';
   const left=act(s).filter(st=>!(it.scores[st.id]||{}).touched).length;
-  $('app').innerHTML=head(it.title,`Table ${i+1}`,"go('section')",'Class',
-      `<button class="gonext" onclick="V.az=false;go('review')">Review${left?' · '+left:''} ›</button>`)+
+  $('app').innerHTML=head(it.title,`Table ${i+1}`,"go('section')",'Class')+
     `<div class="card">${rows}</div>`;
-  bar(`<div class="tabs">${tabs}</div>`);
+  bar(`<div class="tabs">${tabs}</div>
+      <button class="btn sm" onclick="V.az=false;go('review')">Done grading${left?` — ${left} left`:''}</button>`);
 };
 function gradeRow(s,it,id){
   const st=stu(s,id),v=it.scores[id]||{},cur=markOf(v)||'--',un=!v.touched;
@@ -613,7 +613,7 @@ function doRename(){
 function closeHw(){
   const s=sec(),it=item();
   act(s).forEach(st=>{if(!(it.scores[st.id]||{}).touched)it.scores[st.id]={code:'--',missed:true}});
-  it.closed=true;it.synced=false;save();render();syncSection(s.id,true);
+  it.closed=true;it.synced=false;save();go('section');syncSection(s.id,true);
 }
 
 /* ============ late work, by assignment ============ */
