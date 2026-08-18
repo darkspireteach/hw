@@ -430,10 +430,7 @@ VIEWS.section=function(){
         <span class="meta">${n?`${n} to score`:h.closed?'done':'in progress'}</span></button>`}).join('')
       :`<div class="meta" style="margin-top:6px">No assignments logged today</div>`}</div>`;
   const others=live.filter(x=>x.date!==d);
-  const owing=hws(s).filter(h=>needScore(s,h)>0&&h.date!==d);   // today's are on the card already
   $('app').innerHTML=head(s.name,'',"go('home')",'Classes')+banner()+todayCard+
-    (owing.length?`<div class="warnbox"><div class="meta" style="color:var(--attention)">
-      Late arrival — still to score: ${owing.map(h=>esc(h.title)+' ('+esc(when(h.date))+')').join(', ')}</div></div>`:'')+
     (others.length?`<div class="card"><div class="eyebrow" style="color:var(--attention)">Unfinished</div>
       ${others.map(x=>`<div class="rv none" style="margin-top:7px">
         <span class="mk">…</span>
@@ -445,8 +442,8 @@ VIEWS.section=function(){
     `<div class="grid2" style="margin-top:14px">
       <button class="card tap" onclick="go('late')" style="margin:0"><div class="name">Late work</div>
         <div class="meta">${openHw?openHw+' assignment'+(openHw===1?'':'s'):'nothing open'}</div></button>
-      <button class="card tap" onclick="go('people')" style="margin:0"><div class="name">Students</div>
-        <div class="meta">records</div></button>
+      <button class="card tap" onclick="go('records')" style="margin:0"><div class="name">Records</div>
+        <div class="meta">${closedHws(s).length} assignment${closedHws(s).length===1?'':'s'}</div></button>
       <button class="card tap" onclick="go('seats')" style="margin:0"><div class="name">Seating</div>
         <div class="meta">${unseated(s).length?unseated(s).length+' unseated':'all seated'}</div></button>
       <button class="card tap" onclick="go('roster')" style="margin:0"><div class="name">Roster</div>
@@ -472,7 +469,11 @@ function newSession(){
   const it={id:uid(),kind:'session',date:d,attendance:{},closed:false,synced:false};
   s.items.push(it);V.iid=it.id;save();go('attendance');
 }
-function openHwItem(id){V.iid=id;const h=item();V.tab=firstTodo();V.az=!!h.stack;go(h.closed?'review':'grade')}
+function openHwItem(id){
+  V.iid=id;const h=item();V.tab=firstTodo();V.az=!!h.stack;
+  if(!h.closed)V.list=false;
+  go(h.closed?'review':'grade');
+}
 
 /* ============ new assignment: name + date ============ */
 function newHwSheet(){
@@ -597,7 +598,8 @@ VIEWS.review=function(){
   const tally=['5','4','NC','MU','AB'].filter(k=>count[k]).map(k=>`<span>${k} · ${count[k]}</span>`).join('')+
     (un?`<span class="warn">not checked · ${un}</span>`:'');
   $('app').innerHTML=head(it.closed?'Scores':'Review',esc(it.title)+' · '+when(it.date),
-      it.stack?"go('section')":"go('grade')",it.stack?'Class':'Tables')+banner()+
+      V.list?"V.list=false;go('bywork')":it.stack?"go('section')":"go('grade')",
+      V.list?'Assignments':it.stack?'Class':'Tables')+banner()+
     `<div class="grid2">${cells}</div>
      ${un&&!it.closed?`<div class="warnbox" style="margin-top:11px"><div class="meta" style="color:var(--attention)">
        ${un} unchecked. They stay blank and show up in Late work — no score is invented.</div></div>`:''}
@@ -605,9 +607,29 @@ VIEWS.review=function(){
        <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">${V.az?'A–Z':'by table'} ⇅</span>
        <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span></div>`;
   bar(it.closed
-    ? `<button class="btn ghost" onclick="go('section')">Done</button>`
-    : `<button class="btn ${un?'warn':''}" onclick="closeHw()">Close ${esc(it.title)}</button>`);
+    ? `<button class="btn ghost" onclick="${V.list?"V.list=false;go('bywork')":"go('section')"}">Done</button>`
+    : (un?`<button class="btn ghost sm" onclick="fillSheet()">Fill the other ${un} with…</button>`:'')+
+      `<button class="btn ${un?'warn':''}" onclick="closeHw()">Close ${esc(it.title)}</button>`);
 };
+/* Score a handful by hand, then give everyone left the same mark. Only students
+   with no mark yet are touched — nothing you already entered is overwritten. */
+function fillSheet(){
+  const s=sec(),it=item();
+  const n=act(s).filter(st=>!(it.scores[st.id]||{}).touched).length;
+  panel(`<div class="eyebrow">${n} still unmarked</div>
+    <h1 style="margin:6px 0 12px">Give them all…</h1>
+    ${MARKS.map(([k,name])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
+      onclick="fillRest('${k}')"><b style="font-family:var(--mono)">${show(k)}</b> &nbsp; ${name}</button>`).join('')}
+    <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
+}
+function fillRest(k){
+  const s=sec(),it=item();
+  act(s).forEach(st=>{
+    if((it.scores[st.id]||{}).touched)return;
+    it.scores[st.id]=/^[0-9]$/.test(k)?{val:+k,touched:true}:{code:k,touched:true};
+  });
+  it.synced=false;save();closeSheet();render();
+}
 function pickAny(id){
   const s=sec();
   panel(`<div class="eyebrow">${esc(label(stu(s,id)))}</div>
@@ -637,8 +659,7 @@ function closeHw(){
 
 /* ============ late work, by assignment ============ */
 VIEWS.late=function(){
-  const s=sec();
-  const owed=owedIndex(s);
+  const s=sec(),owed=owedIndex(s);
   const rows=closedHws(s).slice().reverse().map(h=>{
     const who=owed[h.id]||[];
     if(!who.length)return '';
@@ -648,6 +669,35 @@ VIEWS.late=function(){
   $('app').innerHTML=head('Late work',esc(s.name),"go('section')",'Class')+
     (rows?`<p class="sub">Pick the assignment, then work down the pile.</p>${rows}`
         :'<div class="empty">Nothing outstanding.</div>');
+  bar('');
+};
+
+/* Records — the same grades from either direction */
+VIEWS.records=function(){
+  const s=sec();
+  V.list=false;
+  $('app').innerHTML=head('Records',esc(s.name),"go('section')",'Class')+
+    `<p class="sub">Every score is editable from either side.</p>
+     <button class="card tap" onclick="go('people')"><div class="name">By student</div>
+       <div class="meta">${act(s).length} enrolled · one student's whole history</div></button>
+     <button class="card tap" onclick="go('bywork')"><div class="name">By assignment</div>
+       <div class="meta">${closedHws(s).length} closed · the whole class at once</div></button>`;
+  bar('');
+};
+
+VIEWS.bywork=function(){
+  const s=sec(),owed=owedIndex(s);
+  const rows=hws(s).slice().reverse().map(h=>{
+    const who=(owed[h.id]||[]).length, need=needScore(s,h);
+    const note=!h.closed?'unfinished':need?`${need} to score`:who?`${who} late`:'complete';
+    return `<button class="rv ${!h.closed||need?'none':who?'':'good'}" style="margin-bottom:6px"
+      onclick="V.list=true;openHwItem('${h.id}')">
+      <span class="mk">${h.closed?'✓':'…'}</span>
+      <span class="who">${esc(h.title)}</span>
+      <span class="meta">${esc(note)} · ${esc(when(h.date))}</span></button>`}).join('');
+  $('app').innerHTML=head('By assignment',esc(s.name),"go('records')",'Records')+
+    (rows?`<p class="sub">Open one to change any score in the class.</p>${rows}`
+        :'<div class="empty">No assignments yet.</div>');
   bar('');
 };
 VIEWS.lateone=function(){
@@ -719,7 +769,7 @@ VIEWS.people=function(){
     return `<button class="rv ${n?'none':''}" style="margin-bottom:6px" onclick="V.hid='${st.id}';go('history')">
       <span class="who" style="${st.out?'color:var(--muted)':''}">${esc(label(st))}</span>
       <span class="meta">${st.out?'left · ':''}${n?n+' open':''}</span></button>`}).join('');
-  $('app').innerHTML=head('Students',esc(s.name),"go('section')",'Class')+rows;
+  $('app').innerHTML=head('By student',esc(s.name),"go('records')",'Records')+rows;
   bar('');
 };
 VIEWS.history=function(){
