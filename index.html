@@ -41,7 +41,7 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
 .row{display:flex;align-items:center;gap:9px}
 .grow{flex:1;min-width:0}
 .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.name{font-size:18px;font-weight:600;letter-spacing:-.2px}
+.name{font-size:17px;font-weight:600;letter-spacing:-.2px;line-height:1.25}
 .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em}
 
 .btn{display:block;width:100%;background:var(--confirm);color:#0C1A1E;font-weight:650;padding:16px;
@@ -60,12 +60,12 @@ input[type=date]{-webkit-appearance:none;appearance:none;display:block;height:50
 input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
 textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1.5}
 
-.student{border-bottom:1px solid var(--edge);padding:10px 0}
+.student{border-bottom:1px solid var(--edge);padding:8px 0}
 .student:last-child{border-bottom:none}
-.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:7px}
+.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:6px}
 .strip.four{grid-template-columns:repeat(4,1fr)}
 .strip.six{grid-template-columns:repeat(6,1fr)}
-.chip{padding:14px 0;border-radius:10px;border:1px solid var(--edge);text-align:center;
+.chip{padding:12px 0;border-radius:10px;border:1px solid var(--edge);text-align:center;
   font-family:var(--mono);font-size:16px;font-weight:600;color:var(--muted)}
 .chip:active{background:var(--raised)}
 .chip.on{background:var(--confirm);border-color:var(--confirm);color:#0C1A1E}
@@ -77,7 +77,7 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .untouched .name{color:var(--attention)}
 
 .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 13px}
-.tab{width:100%;height:44px;padding:0;box-sizing:border-box;
+.tab{width:100%;height:40px;padding:0;box-sizing:border-box;
   display:flex;align-items:center;justify-content:center;
   border-radius:10px;border:1px solid var(--edge);
   font-family:var(--mono);font-size:18px;font-weight:700;color:var(--muted)}
@@ -121,6 +121,9 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
   padding:20px 12px calc(4px + env(safe-area-inset-bottom));z-index:10}
 .bar .inner{max-width:640px;margin:0 auto}
 .bar .btn{margin-top:6px} .bar .grid2{gap:6px;margin-top:6px} .bar .grid2 .btn{margin-top:0}
+.bar .tabs{margin:0}
+.gonext{font-family:var(--mono);font-size:12px;color:var(--confirm);letter-spacing:.07em;
+  text-transform:uppercase;flex:none}
 .sheet{position:fixed;inset:0;background:rgba(8,13,18,.72);z-index:50;display:flex;align-items:flex-end}
 .sheet .panel{background:var(--surface);border-top:1px solid var(--edge);border-radius:18px 18px 0 0;
   padding:16px 12px calc(16px + env(safe-area-inset-bottom));width:100%;max-width:640px;margin:0 auto;
@@ -256,9 +259,20 @@ function mkSection(name,raw){
 }
 function parseRoster(raw){
   return String(raw||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(line=>{
-    const p=line.split(/\t|\s*,\s*/);
-    return {id:uid(),last:(p[0]||'').trim(),first:(p[1]||'').trim(),
-            extra:(p[2]||'').trim(),cubby:(p[3]||'').trim()};
+    if(line.indexOf('\t')>=0){                       // pasted from a spreadsheet
+      const p=line.split('\t');
+      return {id:uid(),last:(p[0]||'').trim(),first:(p[1]||'').trim(),
+              extra:(p[2]||'').trim(),cubby:(p[3]||'').trim()};
+    }
+    if(line.indexOf(',')>=0){                        // "Cox, Brian"
+      const p=line.split(',');
+      return {id:uid(),last:(p[0]||'').trim(),first:(p.slice(1).join(',')||'').trim()};
+    }
+    // typed by hand, spaces only — no Tab key on an iPhone. Read it as
+    // "Brian Cox": everything before the final word is the first name.
+    const w=line.split(/\s+/);
+    if(w.length===1)return {id:uid(),last:w[0],first:''};
+    return {id:uid(),last:w[w.length-1],first:w.slice(0,-1).join(' ')};
   }).filter(s=>s.last||s.first);
 }
 
@@ -490,17 +504,20 @@ function doneAtt(){const it=item();it.closed=true;save();go('section');syncSecti
 VIEWS.grade=function(){
   const s=sec(),it=item(),i=V.tab||0;
   const order=[3,4,5,2,1,0];
+  // table buttons live in the fixed bar: after grading four students your thumb
+  // is already at the bottom of the screen, so the next table is right there
   const tabs=order.map(t=>{
     const ids=tableIds(s,t);
     const todo=ids.some(id=>!(it.scores[id]||{}).touched);
     const cls=t===i?'now':!ids.length?'empty':todo?'todo':'done';
-    return `<button class="tab ${cls}" onclick="V.tab=${t};render()">${t+1}</button>`}).join('');
+    return `<button class="tab ${cls}" onclick="V.tab=${t};render();window.scrollTo(0,0)">${t+1}</button>`}).join('');
   const ids=tableIds(s,i);
   const rows=ids.map(id=>gradeRow(s,it,id)).join('')||'<div class="empty">No one at this table.</div>';
   const left=act(s).filter(st=>!(it.scores[st.id]||{}).touched).length;
-  $('app').innerHTML=head(it.title,when(it.date),"go('section')",'Class')+
-    `<div class="tabs">${tabs}</div><div class="card">${rows}</div>`;
-  bar(`<button class="btn" onclick="V.az=false;go('review')">Review${left?` — ${left} left`:''}</button>`);
+  $('app').innerHTML=head(it.title,`Table ${i+1}`,"go('section')",'Class',
+      `<button class="gonext" onclick="V.az=false;go('review')">Review${left?' · '+left:''} ›</button>`)+
+    `<div class="card">${rows}</div>`;
+  bar(`<div class="tabs">${tabs}</div>`);
 };
 function gradeRow(s,it,id){
   const st=stu(s,id),v=it.scores[id]||{},cur=markOf(v)||'--',un=!v.touched;
@@ -754,7 +771,8 @@ function autoSeat(){
 VIEWS.roster=function(){
   const s=sec(),left=gone(s);
   const row=(st,arch)=>`<div class="rv" style="margin-bottom:6px">
-    <span class="who" style="${arch?'color:var(--muted)':''}">${esc(label(st))}</span>
+    <button class="who" style="text-align:left;${arch?'color:var(--muted)':''}"
+      onclick="editName('${st.id}')">${esc(label(st))}${st.first?'':' ⚠'}</button>
     <button class="chip quiet" style="width:82px;padding:8px 0"
       onclick="${arch?`unarchive('${st.id}')`:`archive('${st.id}')`}">${arch?'Restore':'Remove'}</button></div>`;
   $('app').innerHTML=head('Roster',esc(s.name),"go('section')",'Class')+
@@ -762,16 +780,34 @@ VIEWS.roster=function(){
      ${act(s).slice().sort(byName).map(st=>row(st,false)).join('')}
      ${left.length?`<p class="sub" style="margin-top:20px">No longer in this class</p>
        ${left.slice().sort(byName).map(st=>row(st,true)).join('')}`:''}
-     <p class="sub" style="margin-top:20px">Add students — one per line, last name then first</p>
-     <textarea id="more" placeholder="Noether\tEmmy"></textarea>`;
+     <p class="sub" style="margin-top:20px">Add a student</p>
+     <div class="grid2" style="gap:7px">
+       <input type="text" id="nlast" placeholder="Last name" autocomplete="off">
+       <input type="text" id="nfirst" placeholder="First name" autocomplete="off">
+     </div>
+     <button class="btn sm ghost" style="margin-top:7px" onclick="addOne()">Add student</button>
+     <p class="sub" style="margin-top:20px">Or paste several — one per line, from your gradebook.
+       Typed by hand, "Brian Cox" works too.</p>
+     <textarea id="more" placeholder="Cox, Brian"></textarea>`;
   bar(`<button class="btn" onclick="addStudents()">Add</button>
        <div class="grid2"><button class="btn ghost sm danger" onclick="dropSection()">Delete class</button>
        <button class="btn ghost sm" onclick="go('section')">Done</button></div>`);
 };
+function addOne(){
+  const l=($('nlast').value||'').trim(),f=($('nfirst').value||'').trim();
+  if(!l&&!f)return alert('Enter at least a last name.');
+  addPeople([{id:uid(),last:l,first:f}]);
+}
 function addStudents(){
   const s=sec(),k=st=>(st.last+'|'+st.first).trim().toLowerCase();
   const have=s.students.map(k);
   const fresh=parseRoster($('more').value).filter(n=>!have.includes(k(n)));
+  addPeople(fresh);
+}
+function addPeople(fresh){
+  const s=sec(),k=st=>(st.last+'|'+st.first).trim().toLowerCase();
+  const have=s.students.map(k);
+  fresh=(fresh||[]).filter(n=>!have.includes(k(n)));
   if(!fresh.length)return alert('No new names found.');
   const from=closedHws(s).length;
   fresh.forEach(st=>{st.from=from;s.students.push(st);place(s.tables,st.id)});
@@ -779,6 +815,26 @@ function addStudents(){
   if(d.length)alert('Warning — duplicate name: '+d.map(g=>label(g[0])).join(', ')+
     '. They will look identical everywhere. Consider adding a middle initial.');
   save();render();
+}
+function editName(id){
+  const s=sec(),st=stu(s,id);
+  panel(`<div class="eyebrow">Fix this name</div><div style="height:9px"></div>
+    <div class="grid2" style="gap:7px">
+      <input type="text" id="elast" value="${esc(st.last)}" placeholder="Last name" autocomplete="off">
+      <input type="text" id="efirst" value="${esc(st.first)}" placeholder="First name" autocomplete="off">
+    </div>
+    <div class="meta" style="margin-top:9px">The sheet keys rows on the name, so a corrected name
+      gets a fresh row — delete the old one there by hand.</div>
+    <button class="btn" onclick="saveName('${id}')">Save</button>
+    <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
+}
+function saveName(id){
+  const s=sec(),st=stu(s,id);
+  const l=($('elast').value||'').trim(),f=($('efirst').value||'').trim();
+  if(!l&&!f)return alert('Enter at least a last name.');
+  st.last=l;st.first=f;
+  s.items.forEach(x=>{if(x.closed)x.synced=false});   // rewrite under the new name
+  save();closeSheet();render();
 }
 function archive(id){const s=sec();stu(s,id).out=true;
   s.tables.forEach(r=>r.forEach((v,j)=>{if(v===id)r[j]=null}));save();render()}
