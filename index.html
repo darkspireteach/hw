@@ -1127,17 +1127,20 @@ function backupAge(){
    anything: a failure just leaves the age showing on the home screen. */
 async function autoBackup(){
   const c=S.cfg;
-  if(!c.url||!c.token)return;
+  if(!c.url||!c.token){V.bkErr='No sheet connected.';return}
   if(S.lastBackup&&Date.now()-S.lastBackup<WEEK)return;
   if(V.backingUp)return;
-  V.backingUp=true;
+  V.backingUp=true;V.bkErr=null;
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'backup',blob:backupBlob()})});
     const d=await r.json();
-    if(d.ok){S.lastBackup=Date.now();S.backupName=d.saved;saveAll();
+    if(d.ok&&d.saved){S.lastBackup=Date.now();S.backupName=d.saved;saveAll();
       if(V.view==='home'||V.view==='backup')render()}
-  }catch(e){}
+    // the script answered but saved nothing — that reason is the useful part
+    else if(d.ok)V.bkErr='The script ran but saved nothing — it is still on the old version. Redeploy.';
+    else V.bkErr=String(d.error||'The script refused the request.');
+  }catch(e){V.bkErr='No answer from the script: '+String((e&&e.message)||e)}
   V.backingUp=false;
 }
 function makeBackup(){
@@ -1151,7 +1154,7 @@ async function backupNow(){
   S.lastBackup=null;await autoBackup();
   V.busy=null;
   if(S.lastBackup)V.ok='Saved to Drive — '+esc(S.backupName||'');
-  else V.err='Could not reach Drive. Copy the backup by hand instead.';
+  else V.err=(V.bkErr||'Could not reach Drive.')+' Copy the backup by hand meanwhile.';
   render();
 }
 function copyBox(id){
