@@ -300,6 +300,10 @@ const sessionOn=(s,d)=>sessions(s).filter(x=>x.date===d).slice(-1)[0];
 const hwsOn=(s,d)=>hws(s).filter(x=>x.date===d);
 const markOf=v=>v?(v.code||(v.val!=null?String(v.val):null)):null;
 const unsynced=s=>s.items.filter(x=>x.closed&&!x.synced);
+/* Closing an assignment gives every student a mark, so a student with no entry
+   at all can only mean their auto-AB was cleared by a late arrival. Those need
+   a real score. */
+const needScore=(s,h)=>h.closed?act(s).filter(st=>h.scores[st.id]===undefined).length:0;
 const seatedIds=s=>s.tables.flat().filter(Boolean);
 const unseated=s=>act(s).filter(st=>!seatedIds(s).includes(st.id));
 const tableIds=(s,i)=>s.tables[i].filter(Boolean).filter(id=>{const st=stu(s,id);return st&&!st.out});
@@ -419,13 +423,17 @@ VIEWS.section=function(){
       ? `<div class="meta" style="color:var(--confirm)">Attendance done — ${
           Object.values(sess.attendance).filter(c=>c&&c!=='P').length} exception(s)</div>`
       : `<div class="meta">No attendance yet</div>`}</div>
-    ${hw.length?hw.map(h=>`<button class="rv ${h.closed?'good':'none'}" style="margin-top:7px"
-        onclick="openHwItem('${h.id}')"><span class="mk">${h.closed?'✓':'…'}</span>
+    ${hw.length?hw.map(h=>{const n=needScore(s,h);
+      return `<button class="rv ${n?'none':h.closed?'good':'none'}" style="margin-top:7px"
+        onclick="openHwItem('${h.id}')"><span class="mk">${n?'!':h.closed?'✓':'…'}</span>
         <span class="who">${esc(h.title)}</span>
-        <span class="meta">${h.closed?'done':'in progress'}</span></button>`).join('')
+        <span class="meta">${n?`${n} to score`:h.closed?'done':'in progress'}</span></button>`}).join('')
       :`<div class="meta" style="margin-top:6px">No assignments logged today</div>`}</div>`;
   const others=live.filter(x=>x.date!==d);
+  const owing=hws(s).filter(h=>needScore(s,h)>0&&h.date!==d);   // today's are on the card already
   $('app').innerHTML=head(s.name,'',"go('home')",'Classes')+banner()+todayCard+
+    (owing.length?`<div class="warnbox"><div class="meta" style="color:var(--attention)">
+      Late arrival — still to score: ${owing.map(h=>esc(h.title)+' ('+esc(when(h.date))+')').join(', ')}</div></div>`:'')+
     (others.length?`<div class="card"><div class="eyebrow" style="color:var(--attention)">Unfinished</div>
       ${others.map(x=>`<div class="rv none" style="margin-top:7px">
         <span class="mk">…</span>
