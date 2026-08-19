@@ -149,7 +149,6 @@ const TABLEQ=['AB','MU','--'];         // interrupts you at the table
 const OPEN=['NC','AB','MU','--'];      // counts as owed in records & late work
 const CARRY=2;                         // table interruptions expire after this many assignments
 const TABLES=6, SEATS=4;
-const DAYS=['Su','M','T','W','Th','F','Sa'];
 const DAYL=['Sun','Mon','Tues','Wed','Thurs','Fri','Sat'];
 
 const $=id=>document.getElementById(id);
@@ -162,13 +161,8 @@ const toneOf=k=>(ALLX.find(x=>x[0]===k)||[,,''])[2]||'';
 /* Local dates throughout — toISOString() is UTC and rolls a US evening into tomorrow. */
 function today(){const d=new Date();return iso(d.getFullYear(),d.getMonth()+1,d.getDate())}
 function iso(y,m,d){return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+/* one date style everywhere, app and sheet alike: Mon 08/17 */
 function when(s){
-  const p=String(s||'').split('-').map(Number);
-  if(p.length<3||!p[0])return String(s||'');
-  return DAYS[new Date(p[0],p[1]-1,p[2]).getDay()]+' '+String(p[1]).padStart(2,'0')+'-'+String(p[2]).padStart(2,'0');
-}
-/* what the spreadsheet header shows: Mon 08/17 */
-function sheetWhen(s){
   const p=String(s||'').split('-').map(Number);
   if(p.length<3||!p[0])return String(s||'');
   return DAYL[new Date(p[0],p[1]-1,p[2]).getDay()]+' '+String(p[1]).padStart(2,'0')+'/'+String(p[2]).padStart(2,'0');
@@ -330,11 +324,13 @@ const tableIds=(s,i)=>s.tables[i].filter(Boolean).filter(id=>{const st=stu(s,id)
 
 /* what a student still owes — no expiry, NC included */
 function closedHws(s){return hws(s).filter(h=>h.closed)}
+/* The current true mark, whichever slot it's in: a regrade if one exists,
+   otherwise the original. Regrading AB to NC is a real update — the sheet
+   should show NC — but it doesn't resolve anything: NC is still not a passing
+   grade, so it has to keep showing up as owed until it becomes a number. */
+function effective(v){return v&&v.rev!=null?v.rev:(v&&v.code)}
 function openList(s,id){
-  return closedHws(s).filter(h=>{
-    const v=h.scores[id]||{};
-    return OPEN.includes(v.code)&&v.rev==null;
-  });
+  return closedHws(s).filter(h=>OPEN.includes(effective(h.scores[id])));
 }
 /* One pass over the class: assignment id -> students who still owe it.
    Late work and the class screen both needed this per-student, which was
@@ -349,8 +345,7 @@ function tableQueue(s,id,exclude){
   const closed=hws(s).filter(h=>h.closed&&h.id!==exclude), n=closed.length;
   return closed.filter((h,i)=>{
     if(n-1-i>=CARRY)return false;
-    const v=h.scores[id]||{};
-    return TABLEQ.includes(v.code)&&v.rev==null;
+    return TABLEQ.includes(effective(h.scores[id]));
   });
 }
 function pendingSend(s){
@@ -712,7 +707,7 @@ VIEWS.bywork=function(){
   const s=sec(),owed=owedIndex(s);
   const rows=hws(s).slice().reverse().map(h=>{
     const who=(owed[h.id]||[]).length, need=needScore(s,h);
-    const note=!h.closed?'unfinished':need?`${need} to score`:who?`${who} late`:'complete';
+    const note=!h.closed?'unfinished':need?`${need} to score`:who?`${who} not yet 4/5`:'all passing';
     return `<button class="rv ${!h.closed||need?'none':who?'':'good'}" style="margin-bottom:6px"
       onclick="V.list=true;openHwItem('${h.id}')">
       <span class="mk">${h.closed?'✓':'…'}</span>
@@ -1031,13 +1026,30 @@ function createSection(){
 /* ============ sync ============ */
 VIEWS.sync=function(){
   const c=S.cfg;
-  $('app').innerHTML=head('Sheet sync','apps script',"go('menu')",'Settings')+
+  const stuck=S.sections.reduce((n,s)=>n+unsynced(s).length,0);
+  const pend=S.sections.reduce((n,s)=>n+pendingSend(s),0);
+  $('app').innerHTML=head('Sheet sync','apps script',"go('menu')",'Settings')+banner()+
     `<p class="sub">Paste the web app URL and token from your Apps Script deployment.
       These stay on this phone.</p>
      <input type="text" id="url" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(c.url||'')}" autocomplete="off">
      <div style="height:9px"></div>
-     <input type="text" id="tok" placeholder="Token" value="${esc(c.token||'')}" autocomplete="off">`;
-  bar(`<button class="btn" onclick="saveCfg()">Save</button>`);
+     <input type="text" id="tok" placeholder="Token" value="${esc(c.token||'')}" autocomplete="off">
+     <button class="btn" style="margin-top:9px" onclick="saveCfg()">Save connection</button>
+
+     ${c.url?`<p class="sub" style="margin-top:22px">${stuck?`${stuck} record${stuck===1?'':'s'} not yet sent.`:'Everything is in the sheet.'}</p>
+       ${stuck?`<button class="btn ghost sm" onclick="syncAll()">Send ${stuck} now</button>`:''}
+
+       <p class="sub" style="margin-top:22px">A regrade shows yellow in the sheet until you tell
+         it you've entered that grade into Schoology — this turns the highlight off without
+         changing any score.</p>
+       ${pend?`<button class="btn ghost sm" onclick="markSent()">Clear ${pend} regrade highlight${pend===1?'':'s'}</button>`
+             :`<div class="meta">No regrades waiting on Schoology right now.</div>`}
+
+       <p class="sub" style="margin-top:22px">If the sheet's columns ever get out of step —
+         after tidying them by hand, say — this rewrites every class from what's on the
+         phone.</p>
+       <button class="btn ghost sm" onclick="resendAll()">Resend all classes</button>`:''}`;
+  bar('');
 };
 function saveCfg(){
   S.cfg={url:($('url').value||'').trim(),token:($('tok').value||'').trim()};
@@ -1046,19 +1058,23 @@ function saveCfg(){
 }
 async function syncAll(){for(const s of S.sections)if(unsynced(s).length)await syncSection(s.id,true)}
 
-async function syncSection(id,quiet){
+async function syncSection(id,quiet,full){
   const s=S.sections.find(x=>x.id===id),c=S.cfg;
   if(!c.url||!c.token){if(quiet)return;go('sync');return}
   const pend=unsynced(s);
+  // an explicit full resend, not a normal after-class sync, is the one moment
+  // the payload is a complete history — it's the only time it's safe for the
+  // script to remove a column nothing here matches
+  full=!!full&&pend.length===closedHws(s).length+sessions(s).filter(x=>x.closed).length;
   if(!pend.length){if(!quiet)alert('Nothing new to send.');return}
   V.busy=`Sending ${pend.length}…`;V.err=V.ok=null;render();
   const key=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
   const kk={};s.students.forEach(st=>kk[st.id]=key(st));
-  const payload={token:c.token,section:s.name,
+  const payload={token:c.token,full,section:s.name,
     students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,
       seat:seatName(st),full:fullSeat(st)})),
     items:pend.map(x=>{
-      const o={kind:x.kind,date:x.date,iso:x.date,label:sheetWhen(x.date)};
+      const o={id:x.id,kind:x.kind,date:x.date,iso:x.date,label:when(x.date)};
       if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
       else{o.title=x.title;o.scores={};
         s.students.forEach(st=>{const v=x.scores[st.id];
@@ -1091,40 +1107,53 @@ function markSent(){
 }
 
 /* ============ backup ============ */
+/* Backup means one thing: getting a copy of your data out, and putting one
+   back. Sending data to the sheet and managing regrade highlights are sync
+   concerns, not backup concerns — they live on the Sheet sync screen so they
+   aren't duplicated in two places. */
 VIEWS.backup=function(){
-  const stuck=S.sections.reduce((n,s)=>n+unsynced(s).length,0);
-  const pend=S.sections.reduce((n,s)=>n+pendingSend(s),0);
   $('app').innerHTML=head('Backup','all classes',"go('menu')",'Settings')+banner()+
-    (stuck?`<div class="warnbox"><div class="meta" style="color:var(--attention)">${stuck} record${stuck===1?'':'s'} not yet in the sheet</div></div>`
-         :S.cfg.url?`<div class="okbox"><div class="meta" style="color:var(--confirm)">Everything is in the sheet.</div></div>`:'')+
-    `<p class="sub">Every class, every score, and your sheet settings. Email it to yourself —
-      it contains your token and student names, so keep it private.</p>
+    `<p class="sub">Copy of everything on this phone — email it to yourself. Contains your
+      sheet token and student names, so keep it private.</p>
      <textarea readonly id="dump" style="min-height:80px" placeholder="Tap below to build it"></textarea>
      <button class="btn sm" onclick="makeBackup()">Copy backup</button>
-     <p class="sub" style="margin-top:20px">Restore — replaces everything on this phone.</p>
-     <textarea id="load" style="min-height:80px" placeholder='{"sections":[...]}'></textarea>
-     <button class="btn sm ghost" onclick="restoreAll()">Restore</button>
-     <p class="sub" style="margin-top:20px">Drive — a copy lands in "Homework Check backups"
-       once a week when you open the app. The last ${8} are kept. These leave out your
-       sheet URL and token, so you re-enter those after a restore.</p>
-     <div class="meta" style="margin-bottom:7px">Last backup: ${backupAge()===null?'never'
+
+     <p class="sub" style="margin-top:22px">A copy also lands in Drive automatically, once a
+       week, in a folder called "Homework Check backups". Those leave out the token, so
+       you'll re-enter it after restoring from one.</p>
+     <div class="meta" style="margin-bottom:7px">Last Drive backup: ${backupAge()===null?'never'
        :backupAge()===0?'today':backupAge()+' days ago'}${S.backupName?' · '+esc(S.backupName):''}</div>
      <button class="btn sm ghost" onclick="backupNow()">Back up to Drive now</button>
-     <p class="sub" style="margin-top:20px">Resend everything — use after tidying columns in the
-       sheet by hand, to rewrite them from this phone.</p>
-     <button class="btn sm ghost" onclick="resendAll()">Resend all classes</button>`;
-  bar((stuck?`<button class="btn" onclick="syncAll()">Send ${stuck} to the sheet</button>`:'')+
-      (pend?`<button class="btn ghost sm" onclick="markSent()">Clear ${pend} regrade highlight${pend===1?'':'s'}</button>`:'')+
-      `<button class="btn ghost sm" onclick="go('menu')">Done</button>`);
+
+     <p class="sub" style="margin-top:22px">Restore — paste either kind of copy here. This
+       replaces everything currently on this phone.</p>
+     <textarea id="load" style="min-height:80px" placeholder='{"sections":[...]}'></textarea>
+     <button class="btn sm ghost" onclick="restoreAll()">Restore</button>`;
+  bar(`<button class="btn ghost" onclick="go('menu')">Done</button>`);
 };
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-18 · 14';
-/* Reloading with a fresh query string bypasses the cache. Same origin, so
-   nothing stored is touched. */
-function forceUpdate(){
-  location.replace(location.pathname+'?v='+Date.now());
+const BUILD='2026-08-18 · 16';
+/* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
+   server — a plain reload or query-string trick can still be answered from a
+   cached copy on iOS, especially inside a home-screen app. Comparing the fetched
+   BUILD string against this page's is how we know whether it worked, instead of
+   just reloading and hoping. */
+async function forceUpdate(){
+  V.busy='Checking for an update…';V.err=V.ok=null;render();
+  try{
+    const r=await fetch(location.pathname,{cache:'no-store'});
+    const t=await r.text();
+    const m=t.match(/const BUILD='([^']+)'/);
+    V.busy=null;
+    if(!m){V.err='Could not read the new build. Try again in a minute.';render();return}
+    if(m[1]===BUILD){V.ok='Already on the latest build ('+esc(BUILD)+').';render();return}
+    sessionStorage.setItem('hw:afterUpdate','menu');
+    location.replace(location.pathname+'?v='+Date.now());
+  }catch(e){
+    V.busy=null;V.err='Could not reach the server to check.';render();
+  }
 }
 /* Data only — never the URL or token. These files live in Drive indefinitely,
    and the token is write access to the gradebook. */
@@ -1173,9 +1202,12 @@ function copyBox(id){
 }
 function resendAll(){
   const n=S.sections.reduce((a,s)=>a+s.items.filter(x=>x.closed).length,0);
-  if(!confirm(`Resend ${n} record${n===1?'':'s'} to the sheet?\n\nExisting columns are overwritten with what this phone holds.`))return;
+  if(!confirm(`Resend ${n} record${n===1?'':'s'} to the sheet?\n\n`+
+    `Rewrites every column from what's on this phone, and removes any leftover `+
+    `column an old rename or edit orphaned.`))return;
   S.sections.forEach(s=>s.items.forEach(x=>{if(x.closed)x.synced=false}));
-  saveAll();syncAll();
+  saveAll();
+  S.sections.forEach(s=>{if(unsynced(s).length)syncSection(s.id,true,true)});
 }
 function restoreAll(){
   let o;
@@ -1187,6 +1219,11 @@ function restoreAll(){
   S={sections:o.sections,cfg:o.cfg};V.sid=V.iid=V.hid=null;saveAll();go('home');
 }
 
+const resume=sessionStorage.getItem('hw:afterUpdate');
+if(resume){
+  sessionStorage.removeItem('hw:afterUpdate');
+  V.view=resume;V.ok='Updated — now on build '+BUILD+'.';
+}
 render();
 autoBackup();
 </script>
