@@ -939,7 +939,8 @@ VIEWS.roster=function(){
        Typed by hand, "Brian Cox" works too.</p>
      <textarea id="more" placeholder="Cox, Brian"></textarea>
      <button class="btn sm ghost" style="margin-top:7px" onclick="addStudents()">Add pasted list</button>`;
-  bar(`<div class="grid2"><button class="btn ghost sm danger" onclick="dropSection()">Delete class</button>
+  bar(`<button class="btn ghost sm" onclick="wipeAndRebuild()">Start this class over in the sheet</button>
+       <div class="grid2"><button class="btn ghost sm danger" onclick="dropSection()">Delete class</button>
        <button class="btn ghost sm" onclick="go('section')">Done</button></div>`);
 };
 function addOne(){
