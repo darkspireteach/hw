@@ -996,6 +996,33 @@ function saveName(id){
 function archive(id){const s=sec();stu(s,id).out=true;
   s.tables.forEach(r=>r.forEach((v,j)=>{if(v===id)r[j]=null}));save();render()}
 function unarchive(id){const s=sec();delete stu(s,id).out;place(s.tables,id);save();render()}
+/* Deletes this class's tabs entirely and rebuilds them fresh from the phone.
+   For a tab that's accumulated cruft not worth untangling — old test data,
+   months of format churn — this is faster and safer than editing it by hand. */
+async function wipeAndRebuild(){
+  const s=sec(),c=S.cfg;
+  if(!c.url||!c.token)return alert('Connect your sheet first — Settings, Sheet sync.');
+  if(!confirm(`Start "${s.name}" over in the sheet?\n\n`+
+    `Deletes its gradebook, attendance, and seating tabs completely, then rebuilds `+
+    `them from what's on this phone.\n\n`+
+    `Nothing here is at risk — but anything that lived only in the sheet (a `+
+    `seating arrangement, notes you typed there by hand) will be gone.`))return;
+  V.busy='Clearing the old tabs…';V.err=V.ok=null;render();
+  try{
+    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:c.token,action:'wipe',section:s.name})});
+    const d=await r.json();
+    if(!d.ok){V.busy=null;V.err=d.error||'The script refused the request.';render();return}
+    s.items.forEach(x=>{if(x.closed)x.synced=false});
+    save();
+    V.busy='Rebuilding…';render();
+    await syncSection(s.id,true,true);
+    V.ok='Rebuilt — '+(d.dropped&&d.dropped.length?d.dropped.length+' old tab(s) replaced.':'fresh tabs created.');
+    render();
+  }catch(e){
+    V.busy=null;V.err='Could not reach the sheet — nothing was changed.';render();
+  }
+}
 function dropSection(){
   const s=sec(),n=closedHws(s).length,un=unsynced(s).length;
   if(!confirm(`Delete "${s.name}"?\n\n${act(s).length} students and ${n} assignment${n===1?'':'s'} `+
