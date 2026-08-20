@@ -224,6 +224,8 @@ function migrate(s){
     });
     delete st.from;
   });
+  // one-time: existing students get a number in the order they're already in
+  if(s.students.some(st=>!st.out&&!st.num))giveCubbies(s,s.students.filter(st=>!st.out));
   s.tables=padTables(s.tables);
 }
 function padTables(t){
@@ -269,7 +271,9 @@ function mkSection(name,raw){
   const students=parseRoster(raw);
   const tables=padTables([]);
   students.forEach(st=>place(tables,st.id));
-  return {id:uid(),name,students,tables,items:[]};
+  const s={id:uid(),name,students,tables,items:[]};
+  giveCubbies(s,students);
+  return s;
 }
 function parseRoster(raw){
   return String(raw||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(line=>{
@@ -298,6 +302,21 @@ const act=s=>s.students.filter(st=>!st.out);
 const gone=s=>s.students.filter(st=>st.out);
 const label=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
 /* the seating chart always uses what they go by: "Alex B." */
+/* A cubby number, once given, is that student's for the year — a withdrawal
+   never renumbers anyone else. The vacated number does become available again,
+   so a later arrival can take it. Only students currently in the class hold a
+   number against the pool; someone who left keeps theirs on their own record. */
+function nextCubby(s){
+  const taken={};
+  // filtered inline rather than via act(): this runs during load(), before the
+  // const helpers further down the file exist
+  s.students.filter(st=>!st.out).forEach(st=>{if(st.num)taken[st.num]=true});
+  for(let n=1;n<=30;n++)if(!taken[n])return n;   // 30 cubbies on the wall
+  return null;
+}
+function giveCubbies(s,list){
+  (list||[]).forEach(st=>{if(!st.num)st.num=nextCubby(s)});
+}
 const seatName=st=>st?`${(st.pref||st.first||'').trim()} ${(st.last||'').trim().charAt(0)}.`.trim():'';
 /* what goes in column P — the whole name, so you can shorten it yourself in O */
 const fullSeat=st=>st?`${(st.pref||st.first||'').trim()} ${(st.last||'').trim()}`.trim():'';
@@ -423,6 +442,8 @@ VIEWS.menu=function(){
        <div class="meta">Paste a roster</div></button>
      <button class="card tap" onclick="go('sync')"><div class="name">Sheet sync</div>
        <div class="meta">${S.cfg.url?'Connected':'Not set up'}</div></button>
+     <button class="card tap" onclick="pushCubbies()"><div class="name">Cubby list</div>
+       <div class="meta">Printable numbers for every class</div></button>
      <button class="card tap" onclick="go('backup')"><div class="name">Backup &amp; restore</div>
        <div class="meta">All classes${stuck?' · '+stuck+' unsent':''}</div></button>
      <button class="card tap" onclick="forceUpdate()"><div class="name">Check for an update</div>
@@ -468,10 +489,14 @@ VIEWS.section=function(){
       <button class="card tap" onclick="go('roster')" style="margin:0"><div class="name">Roster</div>
         <div class="meta">add or remove</div></button>
     </div>`+
-    (un?`<button class="btn ghost sm" style="margin-top:9px" onclick="syncSection('${s.id}',true)">
-      Send ${un} to the sheet</button>`:'')+
-    (pend?`<button class="btn ghost sm" style="margin-top:9px" onclick="markSentFor('${s.id}')">
-      Clear ${pend} regrade highlight${pend===1?'':'s'}</button>`:'');
+    // always shown, not only when there's something pending — closing an
+    // assignment syncs automatically, so a "only if needed" button would
+    // essentially never appear and you'd have no manual way to reach it
+    `<button class="btn ghost sm" style="margin-top:9px${un?'':';color:var(--muted)'}"
+       onclick="syncSection('${s.id}',false)">${un?`Send ${un} to the sheet`:'Everything is in the sheet'}</button>
+     <button class="btn ghost sm" style="margin-top:9px${pend?'':';color:var(--muted)'}"
+       onclick="markSentFor('${s.id}')">${pend?`Clear ${pend} regrade highlight${pend===1?'':'s'}`
+         :'No regrades waiting on Schoology'}</button>`;
   bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
         ${sess?'Attendance — edit':'Take attendance'}</button>
       <button class="btn ghost" onclick="newHwSheet()">Grade an assignment</button>`);
@@ -965,6 +990,7 @@ function addPeople(fresh){
   fresh=(fresh||[]).filter(n=>!have.includes(k(n)));
   if(!fresh.length)return alert('No new names found.');
   fresh.forEach(st=>{s.students.push(st);place(s.tables,st.id)});
+  giveCubbies(s,fresh);          // fills the lowest gap a leaver left behind
   // everything already closed is excused for them — no make-up owed
   closedHws(s).forEach(h=>{
     let hit=false;
@@ -1000,7 +1026,13 @@ function saveName(id){
 }
 function archive(id){const s=sec();stu(s,id).out=true;
   s.tables.forEach(r=>r.forEach((v,j)=>{if(v===id)r[j]=null}));save();render()}
-function unarchive(id){const s=sec();delete stu(s,id).out;place(s.tables,id);save();render()}
+function unarchive(id){
+  const s=sec(),st=stu(s,id);
+  delete st.out;
+  // their old number may have been handed to someone else while they were gone
+  if(st.num&&s.students.some(o=>o!==st&&!o.out&&o.num===st.num))st.num=null;
+  place(s.tables,id);giveCubbies(s,[st]);save();render();
+}
 /* Deletes this class's tabs entirely and rebuilds them fresh from the phone.
    For a tab that's accumulated cruft not worth untangling — old test data,
    months of format churn — this is faster and safer than editing it by hand. */
@@ -1198,7 +1230,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 19';
+const BUILD='2026-08-19 · 21';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
@@ -1272,6 +1304,29 @@ function resendAll(){
   S.sections.forEach(s=>s.items.forEach(x=>{if(x.closed)x.synced=false}));
   saveAll();
   S.sections.forEach(s=>{if(unsynced(s).length)syncSection(s.id,true,true)});
+}
+/* The cubby list covers every class at once, so it can't ride along with a
+   per-class sync — the sheet needs them all together to lay out three across. */
+async function pushCubbies(){
+  const c=S.cfg;
+  if(!c.url||!c.token)return alert('Connect your sheet first — Settings, Sheet sync.');
+  V.busy='Building the cubby list…';V.err=V.ok=null;render();
+  const classes=S.sections.map(s=>({
+    name:s.name,
+    students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,num:st.num||''}))
+  })).filter(x=>x.students.length);
+  if(!classes.length){V.busy=null;V.err='No students to list yet.';render();return}
+  try{
+    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:c.token,action:'cubbies',classes})});
+    const d=await r.json();
+    V.busy=null;
+    if(!d.ok){V.err=d.error||'The script refused the request.';render();return}
+    V.ok=`Cubby list built — ${d.classes} class${d.classes===1?'':'es'}, ${d.students} students.`;
+    render();
+  }catch(e){
+    V.busy=null;V.err='Could not reach the sheet.';render();
+  }
 }
 function restoreAll(){
   let o;
