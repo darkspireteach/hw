@@ -406,7 +406,7 @@ VIEWS.home=function(){
     </button>`}).join('');
   const age=backupAge();
   const stale=age===null||age>10;
-  $('app').innerHTML=head('Homework Check','classes',null,null,
+  $('app').innerHTML=head('Classes','',null,null,
       `<button class="cog" onclick="go('menu')">⚙</button>`)+banner()+
     (S.cfg.url?`<div class="meta" style="text-align:center;margin:-4px 0 10px;
        ${stale?'color:var(--attention)':''}">Last backup: ${age===null?'never':
@@ -435,6 +435,7 @@ VIEWS.section=function(){
   const s=sec(),d=today(),sess=sessionOn(s,d),hw=hwsOn(s,d);
   const live=s.items.filter(x=>!x.closed);
   const openHw=Object.keys(owedIndex(s)).length;
+  const un=unsynced(s).length, pend=pendingSend(s);
   const todayCard=`<div class="card">
     <div class="eyebrow">Today · ${esc(when(d))}</div>
     <div style="margin-top:8px">${sess
@@ -460,13 +461,17 @@ VIEWS.section=function(){
     `<div class="grid2" style="margin-top:14px">
       <button class="card tap" onclick="go('late')" style="margin:0"><div class="name">Late work</div>
         <div class="meta">${openHw?openHw+' assignment'+(openHw===1?'':'s'):'nothing open'}</div></button>
-      <button class="card tap" onclick="go('records')" style="margin:0"><div class="name">Records</div>
+      <button class="card tap" onclick="go('records')" style="margin:0"><div class="name">Gradebook</div>
         <div class="meta">${closedHws(s).length} assignment${closedHws(s).length===1?'':'s'}</div></button>
       <button class="card tap" onclick="go('seats')" style="margin:0"><div class="name">Seating</div>
         <div class="meta">${unseated(s).length?unseated(s).length+' unseated':'all seated'}</div></button>
       <button class="card tap" onclick="go('roster')" style="margin:0"><div class="name">Roster</div>
         <div class="meta">add or remove</div></button>
-    </div>`;
+    </div>`+
+    (un?`<button class="btn ghost sm" style="margin-top:9px" onclick="syncSection('${s.id}',true)">
+      Send ${un} to the sheet</button>`:'')+
+    (pend?`<button class="btn ghost sm" style="margin-top:9px" onclick="markSentFor('${s.id}')">
+      Clear ${pend} regrade highlight${pend===1?'':'s'}</button>`:'');
   bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
         ${sess?'Attendance — edit':'Take attendance'}</button>
       <button class="btn ghost" onclick="newHwSheet()">Grade an assignment</button>`);
@@ -694,7 +699,7 @@ VIEWS.late=function(){
 VIEWS.records=function(){
   const s=sec();
   V.list=false;
-  $('app').innerHTML=head('Records',esc(s.name),"go('section')",'Class')+
+  $('app').innerHTML=head('Gradebook',esc(s.name),"go('section')",'Class')+
     `<p class="sub">Every score is editable from either side.</p>
      <button class="card tap" onclick="go('people')"><div class="name">By student</div>
        <div class="meta">${act(s).length} enrolled · one student's whole history</div></button>
@@ -713,7 +718,7 @@ VIEWS.bywork=function(){
       <span class="mk">${h.closed?'✓':'…'}</span>
       <span class="who">${esc(h.title)}</span>
       <span class="meta">${esc(note)} · ${esc(when(h.date))}</span></button>`}).join('');
-  $('app').innerHTML=head('By assignment',esc(s.name),"go('records')",'Records')+
+  $('app').innerHTML=head('By assignment',esc(s.name),"go('records')",'Gradebook')+
     (rows?`<p class="sub">Open one to change any score in the class.</p>${rows}`
         :'<div class="empty">No assignments yet.</div>');
   bar('');
@@ -787,7 +792,7 @@ VIEWS.people=function(){
     return `<button class="rv ${n?'none':''}" style="margin-bottom:6px" onclick="V.hid='${st.id}';go('history')">
       <span class="who" style="${st.out?'color:var(--muted)':''}">${esc(label(st))}</span>
       <span class="meta">${st.out?'left · ':''}${n?n+' open':''}</span></button>`}).join('');
-  $('app').innerHTML=head('By student',esc(s.name),"go('records')",'Records')+rows;
+  $('app').innerHTML=head('By student',esc(s.name),"go('records')",'Gradebook')+rows;
   bar('');
 };
 VIEWS.history=function(){
@@ -1064,14 +1069,8 @@ VIEWS.sync=function(){
      <input type="text" id="tok" placeholder="Token" value="${esc(c.token||'')}" autocomplete="off">
      <button class="btn" style="margin-top:9px" onclick="saveCfg()">Save connection</button>
 
-     ${c.url?`<p class="sub" style="margin-top:22px">${stuck?`${stuck} record${stuck===1?'':'s'} not yet sent.`:'Everything is in the sheet.'}</p>
-       ${stuck?`<button class="btn ghost sm" onclick="syncAll()">Send ${stuck} now</button>`:''}
-
-       <p class="sub" style="margin-top:22px">A regrade shows yellow in the sheet until you tell
-         it you've entered that grade into Schoology — this turns the highlight off without
-         changing any score.</p>
-       ${pend?`<button class="btn ghost sm" onclick="markSent()">Clear ${pend} regrade highlight${pend===1?'':'s'}</button>`
-             :`<div class="meta">No regrades waiting on Schoology right now.</div>`}
+     ${c.url?`<p class="sub" style="margin-top:22px">${stuck?`${stuck} record${stuck===1?'':'s'} not yet sent — sending and clearing regrade
+         highlights now live on each class's own page.`:'Everything is in the sheet.'}</p>
 
        <p class="sub" style="margin-top:22px">If the sheet's columns ever get out of step —
          after tidying them by hand, say — this rewrites every class from what's on the
@@ -1086,6 +1085,13 @@ function saveCfg(){
 }
 async function syncAll(){for(const s of S.sections)if(unsynced(s).length)await syncSection(s.id,true)}
 
+/* Apps Script gets killed at 6 minutes. A whole year resent in one request
+   would land somewhere around that line, and a timeout mid-write leaves the
+   sheet half-rewritten — so a full resend goes over in chunks. Each chunk is
+   its own request, well inside the limit, and each carries the complete id
+   list so the script's cleanup pass still sees the whole picture. */
+const CHUNK=40;
+
 async function syncSection(id,quiet,full){
   const s=S.sections.find(x=>x.id===id),c=S.cfg;
   if(!c.url||!c.token){if(quiet)return;go('sync');return}
@@ -1095,43 +1101,73 @@ async function syncSection(id,quiet,full){
   // script to remove a column nothing here matches
   full=!!full&&pend.length===closedHws(s).length+sessions(s).filter(x=>x.closed).length;
   if(!pend.length){if(!quiet)alert('Nothing new to send.');return}
-  V.busy=`Sending ${pend.length}…`;V.err=V.ok=null;render();
+
   const key=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
   const kk={};s.students.forEach(st=>kk[st.id]=key(st));
-  const payload={token:c.token,full,section:s.name,
-    students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,
-      seat:seatName(st),full:fullSeat(st)})),
-    items:pend.map(x=>{
-      const o={id:x.id,kind:x.kind,date:x.date,iso:x.date,label:when(x.date)};
-      if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
-      else{o.title=x.title;o.scores={};
-        s.students.forEach(st=>{const v=x.scores[st.id];
-          if(v)o.scores[kk[st.id]]={val:v.val,code:v.code,rev:v.rev,sent:!!v.sent}})}
-      return o;
-    })};
-  try{
-    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify(payload)});
-    const d=await r.json();
-    V.busy=null;
-    if(!d.ok){V.err=d.error||'The sheet refused the write.';render();return}
-    pend.forEach(x=>x.synced=true);
-    const keep=V.sid;V.sid=s.id;
-    V.ok=`Sent ${d.items||pend.length} · ${d.matched||''} students`+
-      (d.unmatched&&d.unmatched.length?` · ${d.unmatched.length} unmatched`:'');
-    save();V.sid=keep;render();
-  }catch(e){
-    V.busy=null;V.err='Could not reach the sheet. Everything is safe on this phone — try again on better wifi.';
+  const roster=act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,
+    seat:seatName(st),full:fullSeat(st)}));
+  const allIds=full?closedHws(s).map(h=>h.id):null;
+  const pack=x=>{
+    const o={id:x.id,kind:x.kind,date:x.date,iso:x.date,label:when(x.date)};
+    if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
+    else{o.title=x.title;o.scores={};
+      s.students.forEach(st=>{const v=x.scores[st.id];
+        if(v)o.scores[kk[st.id]]={val:v.val,code:v.code,rev:v.rev,sent:!!v.sent}})}
+    return o;
+  };
+
+  const batches=[];
+  for(let i=0;i<pend.length;i+=CHUNK)batches.push(pend.slice(i,i+CHUNK));
+  V.err=V.ok=null;
+  let sentCount=0,matched='',unmatched=0;
+
+  for(let b=0;b<batches.length;b++){
+    V.busy=batches.length>1
+      ? `Sending ${sentCount+batches[b].length} of ${pend.length}…`
+      : `Sending ${pend.length}…`;
     render();
+    const payload={token:c.token,full,section:s.name,students:roster,
+      items:batches[b].map(pack)};
+    if(full){payload.allIds=allIds;payload.last=(b===batches.length-1)}
+    try{
+      const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(!d.ok){
+        V.busy=null;
+        // whatever already went through stays marked sent — a retry picks up
+        // exactly where this stopped rather than starting over
+        V.err=(d.error||'The sheet refused the write.')+
+          (sentCount?` (${sentCount} of ${pend.length} had already gone through)`:'');
+        save();render();return;
+      }
+      batches[b].forEach(x=>x.synced=true);
+      sentCount+=batches[b].length;
+      matched=d.matched||matched;
+      unmatched=(d.unmatched&&d.unmatched.length)||unmatched;
+      save();
+    }catch(e){
+      V.busy=null;
+      V.err='Could not reach the sheet. Everything is safe on this phone — try again on better wifi.'+
+        (sentCount?` (${sentCount} of ${pend.length} had already gone through)`:'');
+      save();render();return;
+    }
   }
+
+  V.busy=null;
+  const keep=V.sid;V.sid=s.id;
+  V.ok=`Sent ${sentCount} · ${matched} students`+(unmatched?` · ${unmatched} unmatched`:'');
+  save();V.sid=keep;render();
 }
-function markSent(){
-  S.sections.forEach(s=>hws(s).forEach(h=>{
+
+function markSentFor(id){
+  const s=S.sections.find(x=>x.id===id);
+  hws(s).forEach(h=>{
     let hit=false;
     Object.values(h.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent){v.sent=true;hit=true}});
     if(hit)h.synced=false;
-  }));
-  saveAll();syncAll();
+  });
+  save();syncSection(id,true);
 }
 
 /* ============ backup ============ */
@@ -1162,7 +1198,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 17';
+const BUILD='2026-08-19 · 19';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
