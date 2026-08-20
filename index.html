@@ -1143,14 +1143,14 @@ VIEWS.backup=function(){
   $('app').innerHTML=head('Backup','all classes',"go('menu')",'Settings')+banner()+
     `<p class="sub">Copy of everything on this phone — email it to yourself. Contains your
       sheet token and student names, so keep it private.</p>
-     <textarea readonly id="dump" style="min-height:80px" placeholder="Tap below to build it"></textarea>
+     <textarea readonly id="dump" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0"></textarea>
      <button class="btn sm" onclick="makeBackup()">Copy backup</button>
 
      <p class="sub" style="margin-top:22px">A copy also lands in Drive automatically, once a
        week, in a folder called "Homework Check backups". Those leave out the token, so
        you'll re-enter it after restoring from one.</p>
      <div class="meta" style="margin-bottom:7px">Last Drive backup: ${backupAge()===null?'never'
-       :backupAge()===0?'today':backupAge()+' days ago'}${S.backupName?' · '+esc(S.backupName):''}</div>
+       :backupAge()===0?'today':backupAge()+' days ago'}${S.cfg.backupName?' · '+esc(S.cfg.backupName):''}</div>
      <button class="btn sm ghost" onclick="backupNow()">Back up to Drive now</button>
 
      <p class="sub" style="margin-top:22px">Restore — paste either kind of copy here. This
@@ -1162,7 +1162,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-18 · 16';
+const BUILD='2026-08-19 · 17';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
@@ -1187,22 +1187,22 @@ async function forceUpdate(){
    and the token is write access to the gradebook. */
 const backupBlob=()=>JSON.stringify({sections:S.sections,cfg:{}});
 function backupAge(){
-  if(!S.lastBackup)return null;
-  return Math.floor((Date.now()-S.lastBackup)/86400000);
+  if(!S.cfg.lastBackup)return null;
+  return Math.floor((Date.now()-S.cfg.lastBackup)/86400000);
 }
 /* Fires when the app opens and the last copy is over a week old. Never blocks
    anything: a failure just leaves the age showing on the home screen. */
 async function autoBackup(){
   const c=S.cfg;
   if(!c.url||!c.token){V.bkErr='No sheet connected.';return}
-  if(S.lastBackup&&Date.now()-S.lastBackup<WEEK)return;
+  if(S.cfg.lastBackup&&Date.now()-S.cfg.lastBackup<WEEK)return;
   if(V.backingUp)return;
   V.backingUp=true;V.bkErr=null;
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'backup',blob:backupBlob()})});
     const d=await r.json();
-    if(d.ok&&d.saved){S.lastBackup=Date.now();S.backupName=d.saved;saveAll();
+    if(d.ok&&d.saved){S.cfg.lastBackup=Date.now();S.cfg.backupName=d.saved;saveAll();
       if(V.view==='home'||V.view==='backup')render()}
     // the script answered but saved nothing — that reason is the useful part
     else if(d.ok)V.bkErr='The script ran but saved nothing — it is still on the old version. Redeploy.';
@@ -1218,9 +1218,9 @@ function makeBackup(){
 }
 async function backupNow(){
   V.busy='Saving to Drive…';V.err=V.ok=null;render();
-  S.lastBackup=null;await autoBackup();
+  S.cfg.lastBackup=null;await autoBackup();
   V.busy=null;
-  if(S.lastBackup)V.ok='Saved to Drive — '+esc(S.backupName||'');
+  if(S.cfg.lastBackup)V.ok='Saved to Drive — '+esc(S.cfg.backupName||'');
   else V.err=(V.bkErr||'Could not reach Drive.')+' Copy the backup by hand meanwhile.';
   render();
 }
