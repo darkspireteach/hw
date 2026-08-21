@@ -518,17 +518,43 @@ function newSession(){
   s.items.push(it);V.iid=it.id;save();go('attendance');
 }
 function openHwItem(id){
-  V.iid=id;const h=item();V.tab=firstTodo();V.az=!!h.stack;
+  V.iid=id;const h=item();V.tab=firstTodo();
+  // by table only while walking the room; anything opened afterwards — from All
+  // assignments, or revisiting a closed one — reads better alphabetically
+  V.az=h.closed?true:!!h.stack;
   if(!h.closed)V.list=false;
   go(h.closed?'review':'grade');
 }
 
 /* ============ new assignment: name + date ============ */
+/* The same homework usually goes to more than one section, so offer what the
+   other classes have used lately. Only names this class hasn't used itself —
+   an assignment already here doesn't need suggesting. */
+function recentTitles(s){
+  const mine={};hws(s).forEach(h=>{mine[h.title.trim().toLowerCase()]=true});
+  const seen={},out=[];
+  S.sections.forEach(o=>{
+    if(o.id===s.id)return;
+    hws(o).slice().reverse().forEach(h=>{
+      const t=(h.title||'').trim(),k=t.toLowerCase();
+      if(!t||mine[k]||seen[k])return;
+      seen[k]=true;out.push({title:t,from:o.name,date:h.date});
+    });
+  });
+  return out.sort((a,b)=>a.date<b.date?1:-1).slice(0,6);
+}
+function useTitle(t){$('ttl').value=t}
+
 function newHwSheet(){
   const s=sec(),n=hws(s).length+1;
+  const recent=recentTitles(s);
   panel(`<div class="eyebrow">${esc(s.name)}</div>
     <h1 style="margin:6px 0 12px">New assignment</h1>
     <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
+    ${recent.length?`<div class="tally" style="margin:8px 0 0">${recent.map(r=>
+      `<span onclick="useTitle('${esc(r.title).replace(/'/g,"\\'")}')" style="cursor:pointer"
+        title="${esc(r.from)}">${esc(r.title)}</span>`).join('')}</div>
+      <div class="meta" style="margin-top:5px">Recently used in your other classes — tap to reuse.</div>`:''}
     <div style="height:9px"></div>
     <input type="date" id="dte" value="${today()}">
     <div class="meta" style="margin-top:8px">Absences from that day fill in as AB automatically.</div>
@@ -636,13 +662,24 @@ function firstTodo(){
 /* ============ review ============ */
 VIEWS.review=function(){
   const s=sec(),it=item();
-  const order=V.az?act(s).slice().sort(byName).map(x=>x.id)
-                  :s.tables.flat().filter(Boolean).filter(id=>{const st=stu(s,id);return st&&!st.out});
-  const cells=order.map(id=>{
+  const cell=id=>{
     const st=stu(s,id),v=it.scores[id]||{},k=markOf(v)||'--';
     return `<button class="rv ${['good','bad','info','ex'].includes(toneOf(k))?toneOf(k):'none'}"
       onclick="pickAny('${id}')"><span class="mk">${esc(show(k))}</span>
-      <span class="who">${esc(label(st))}</span>${v.auto?'<span class="meta">auto</span>':''}</button>`}).join('');
+      <span class="who">${esc(label(st))}</span>${v.auto?'<span class="meta">auto</span>':''}</button>`;
+  };
+  let cells;
+  if(V.az){
+    cells=`<div class="grid2">${act(s).slice().sort(byName).map(x=>cell(x.id)).join('')}</div>`;
+  }else{
+    // grouped by table, so what's on screen matches how you walked the room
+    cells=[3,4,5,2,1,0].map(t=>{
+      const ids=tableIds(s,t);
+      if(!ids.length)return '';
+      return `<div class="eyebrow" style="display:block;margin:12px 0 5px">Table ${t+1}</div>
+        <div class="grid2">${ids.map(cell).join('')}</div>`;
+    }).join('');
+  }
   const count={};act(s).forEach(st=>{const k=markOf(it.scores[st.id]||{})||'--';count[k]=(count[k]||0)+1});
   const un=count['--']||0;
   const tally=['5','4','NC','MU','AB'].filter(k=>count[k]).map(k=>`<span>${k} · ${count[k]}</span>`).join('')+
@@ -650,8 +687,8 @@ VIEWS.review=function(){
   $('app').innerHTML=head(it.closed?'Scores':'Review',esc(it.title)+' · '+when(it.date),
       V.list?"V.list=false;go('bywork')":it.stack?"go('section')":"go('grade')",
       V.list?'Assignments':it.stack?'Class':'Tables')+banner()+
-    `<div class="grid2">${cells}</div>
-     ${un&&!it.closed?`<div class="warnbox" style="margin-top:11px"><div class="meta" style="color:var(--attention)">
+    cells+
+     `${un&&!it.closed?`<div class="warnbox" style="margin-top:11px"><div class="meta" style="color:var(--attention)">
        ${un} unchecked. They stay blank and show up in Late work — no score is invented.</div></div>`:''}
      <div class="tally" style="margin:14px 0 0">${tally}
        <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">${V.az?'A–Z':'by table'} ⇅</span>
@@ -1176,7 +1213,7 @@ async function syncSection(id,quiet,full){
       ? `Sending ${sentCount+batches[b].length} of ${pend.length}…`
       : `Sending ${pend.length}…`;
     render();
-    const payload={token:c.token,full,section:s.name,students:roster,
+    const payload={token:c.token,full,section:s.name,idx:S.sections.indexOf(s),students:roster,
       items:batches[b].map(pack)};
     if(full){payload.allIds=allIds;payload.last=(b===batches.length-1)}
     try{
@@ -1248,7 +1285,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 22';
+const BUILD='2026-08-19 · 24';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
