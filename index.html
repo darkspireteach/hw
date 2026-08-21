@@ -20,7 +20,7 @@ html,body{margin:0;height:100%}
 body{background:var(--ground);color:var(--ink);font-family:var(--sys);font-size:17px;line-height:1.4;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   -webkit-user-select:none;user-select:none;overscroll-behavior:none}
-#app{max-width:640px;margin:0 auto;padding:0 12px 180px;overflow-x:hidden}
+#app{max-width:640px;margin:0 auto;padding:0 12px 210px;overflow-x:hidden}
 html,body{max-width:100%;overflow-x:hidden}
 
 header{display:flex;align-items:baseline;gap:9px;padding:16px 2px 12px;position:sticky;top:0;
@@ -119,8 +119,12 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .okbox{border:1px solid var(--confirm);border-radius:12px;padding:12px;margin-bottom:11px}
 .empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:15px}
 
-.bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--ground) 20%);
-  padding:20px 12px calc(4px + env(safe-area-inset-bottom));z-index:10}
+/* Solid, not a gradient. The gradient faded to transparent at the top, so on
+   the grading screen — where the bar holds six table buttons plus Done — the
+   rows underneath showed straight through it. */
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--ground);
+  border-top:1px solid var(--edge);
+  padding:8px 12px calc(4px + env(safe-area-inset-bottom));z-index:10}
 .bar .inner{max-width:640px;margin:0 auto}
 .bar .btn{margin-top:6px} .bar .grid2{gap:6px;margin-top:6px} .bar .grid2 .btn{margin-top:0}
 .bar .tabs{margin:0}
@@ -1285,7 +1289,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 24';
+const BUILD='2026-08-19 · 25';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
