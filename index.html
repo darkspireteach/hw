@@ -21,7 +21,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--sys);font-size:
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   -webkit-user-select:none;user-select:none;overscroll-behavior:none}
 #app{max-width:640px;margin:0 auto;padding:0 12px 14px;overflow-x:hidden}
-html,body{max-width:100%;overflow-x:hidden}
+html,body{max-width:100%;overflow-x:hidden;overscroll-behavior-y:none}
 
 header{display:flex;align-items:baseline;gap:9px;padding:16px 2px 12px;position:sticky;top:0;
   background:var(--ground);z-index:5;max-width:100%;overflow:hidden}
@@ -85,15 +85,16 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
    to a <button> that is itself a flex container inside a grid — the grid's
    stretch wins and the buttons come out different sizes. Centring the glyph with
    line-height sidesteps the whole thing. */
-.tab{width:100%;height:40px;min-height:40px;max-height:40px;align-self:center;
-  padding:0;margin:0;box-sizing:border-box;
-  display:block;line-height:38px;text-align:center;overflow:hidden;
+.tab{width:100%;height:40px;box-sizing:border-box;
+  line-height:38px;text-align:center;overflow:hidden;cursor:pointer;
   border-radius:10px;border:1px solid var(--edge);
-  font-family:var(--mono);font-size:18px;font-weight:700;color:var(--muted)}
+  font-family:var(--mono);font-size:18px;font-weight:700;color:var(--muted);
+  -webkit-user-select:none;user-select:none}
+.tab:active{background:var(--raised)}
 .tab.todo{border-color:var(--attention);color:var(--attention)}
 .tab.done{color:var(--confirm);border-color:var(--edge)}
 .tab.now{background:var(--raised);color:var(--ink);border-color:var(--ink)}
-.tab.empty{opacity:.32}
+.tab.empty{border-color:#26333f;color:#3d4b58}
 
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px}
 .grid2>*{min-width:0;max-width:100%}
@@ -126,12 +127,11 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .okbox{border:1px solid var(--confirm);border-radius:12px;padding:12px;margin-bottom:11px}
 .empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:15px}
 
-/* Solid, not a gradient. The gradient faded to transparent at the top, so on
-   the grading screen — where the bar holds six table buttons plus Done — the
-   rows underneath showed straight through it. */
-.bar{position:fixed;left:0;right:0;bottom:0;background:var(--ground);
-  border-top:1px solid var(--edge);
-  padding:8px 12px calc(4px + env(safe-area-inset-bottom));z-index:10}
+/* Gradient, with enough solid run beneath it to sit behind the buttons — the
+   fade is only in the top strip, above where any control lands. */
+.bar{position:fixed;left:0;right:0;bottom:0;
+  background:linear-gradient(transparent,var(--ground) 14%);
+  padding:18px 12px calc(4px + env(safe-area-inset-bottom));z-index:10}
 .bar .inner{max-width:640px;margin:0 auto}
 .bar .btn{margin-top:6px} .bar .grid2{gap:6px;margin-top:6px} .bar .grid2 .btn{margin-top:0}
 .bar .tabs{margin:0}
@@ -644,7 +644,7 @@ VIEWS.grade=function(){
     const ids=tableIds(s,t);
     const todo=ids.some(id=>!(it.scores[id]||{}).touched);
     const cls=t===i?'now':!ids.length?'empty':todo?'todo':'done';
-    return `<button class="tab ${cls}" onclick="V.tab=${t};render();window.scrollTo(0,0)">${t+1}</button>`}).join('');
+    return `<div role="button" class="tab ${cls}" onclick="V.tab=${t};render();window.scrollTo(0,0)">${t+1}</div>`}).join('');
   const ids=tableIds(s,i);
   const rows=ids.map(id=>gradeRow(s,it,id)).join('')||'<div class="empty">No one at this table.</div>';
   const left=act(s).filter(st=>!(it.scores[st.id]||{}).touched).length;
@@ -1309,7 +1309,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 27';
+const BUILD='2026-08-19 · 28';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
