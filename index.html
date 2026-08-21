@@ -466,6 +466,8 @@ VIEWS.menu=function(){
        <div class="meta">Paste a roster</div></button>
      <button class="card tap" onclick="go('sync')"><div class="name">Sheet sync</div>
        <div class="meta">${S.cfg.url?'Connected':'Not set up'}</div></button>
+     <button class="card tap" onclick="go('trash')"><div class="name">Recently deleted</div>
+       <div class="meta">${readTrash().length?readTrash().length+' item'+(readTrash().length===1?'':'s')+' recoverable':'nothing deleted'}</div></button>
      <button class="card tap" onclick="pushCubbies()"><div class="name">Cubby list</div>
        <div class="meta">Printable numbers for every class</div></button>
      <button class="card tap" onclick="go('backup')"><div class="name">Backup &amp; restore</div>
@@ -716,7 +718,7 @@ VIEWS.review=function(){
        ${un} unchecked. They stay blank and show up in Late work — no score is invented.</div></div>`:''}
      <div class="tally" style="margin:14px 0 0">${tally}
        <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">${V.az?'A–Z':'by table'} ⇅</span>
-       <span onclick="renameSheet()" style="cursor:pointer">rename ✎</span></div>`;
+       <span onclick="editSheet()" style="cursor:pointer">edit ✎</span></div>`;
   bar(it.closed
     ? `<button class="btn ghost" onclick="${V.list?"V.list=false;go('bywork')":"go('section')"}">Done</button>`
     : (un?`<button class="btn ghost sm" onclick="fillSheet()">Fill the other ${un} with…</button>`:'')+
@@ -747,14 +749,48 @@ function pickAny(id){
     ${(it.closed?ALLX:ALL).map(([k,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
       onclick="setMark('${id}','${k}');closeSheet()"><b style="font-family:var(--mono)">${show(k)}</b> &nbsp; ${n}</button>`).join('')}`);
 }
-function renameSheet(){
+function editSheet(){
   const it=item();
-  panel(`<div class="eyebrow">Assignment</div><div style="height:9px"></div>
+  panel(`<div class="eyebrow">Edit assignment</div><div style="height:9px"></div>
     <input type="text" id="ren" value="${esc(it.title)}" autocomplete="off">
     <div style="height:9px"></div>
     <input type="date" id="rdt" value="${esc(it.date)}">
     <button class="btn" onclick="doRename()">Save</button>
+    <button class="btn ghost sm danger" onclick="dropItemNow()">Delete this assignment</button>
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
+}
+
+/* Deleting a closed assignment has to clear the sheet as well, or its column
+   sits there orphaned holding scores for something that no longer exists. The
+   sheet is cleared first: if that fails, nothing is removed here either, so the
+   two never disagree. */
+async function dropItemNow(){
+  const s=sec(),it=item(),c=S.cfg;
+  if(!it)return;
+  const marks=Object.keys(it.kind==='session'?(it.attendance||{}):(it.scores||{})).length;
+  if(!confirm(`Delete "${it.title||'attendance'}" from ${when(it.date)}?\n\n`+
+    `${marks} mark${marks===1?'':'s'} will be removed from this phone`+
+    (it.closed?' and its columns cleared from the sheet.':'.')+
+    `\n\nThis cannot be undone.`))return;
+
+  if(it.closed&&c.url&&c.token){
+    closeSheet();V.busy='Clearing it from the sheet…';V.err=V.ok=null;render();
+    try{
+      const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({token:c.token,action:'dropItem',section:s.name,
+          id:it.id,kind:it.kind,iso:it.date})});
+      const d=await r.json();
+      if(!d.ok){V.busy=null;V.err=(d.error||'The sheet refused it')+' — nothing was deleted.';render();return}
+    }catch(e){
+      V.busy=null;V.err='Could not reach the sheet — nothing was deleted.';render();return;
+    }
+  }
+  toTrash('item',it.title||('attendance '+when(it.date)),
+    JSON.parse(JSON.stringify(it)),{sid:s.id});
+  s.items=s.items.filter(x=>x.id!==it.id);
+  if(V.iid===it.id)V.iid=null;
+  V.busy=null;V.ok=`Deleted ${esc(it.title||'attendance')} — recoverable from Settings.`;
+  save();closeSheet();go('section');
 }
 function doRename(){
   const s=sec(),it=item(),t=($('ren').value||'').trim(),d=$('rdt').value||it.date;
@@ -1152,13 +1188,74 @@ async function wipeAndRebuild(){
     V.busy=null;V.err='Could not reach the sheet — nothing was changed.';render();
   }
 }
+/* A recycle bin for the things that can't otherwise be undone. Deleting a class
+   or an assignment is two taps on a phone, in a classroom, and until now there
+   was no way back from a mis-tap. Kept small on purpose: bounded by total size,
+   oldest evicted first, so it can never crowd out the live data. */
+const TRASH_CAP=500*1024;
+function readTrash(){
+  try{return JSON.parse(localStorage.getItem('hw:trash')||'[]')||[]}catch(e){return []}
+}
+function toTrash(kind,label,data,extra){
+  let bin=readTrash();
+  bin.unshift(Object.assign({id:uid(),when:Date.now(),kind,label,data},extra||{}));
+  // evict oldest until it fits
+  while(bin.length>1&&JSON.stringify(bin).length>TRASH_CAP)bin.pop();
+  try{localStorage.setItem('hw:trash',JSON.stringify(bin))}catch(e){
+    // if even one entry won't fit, better to keep going than to block the delete
+    try{localStorage.setItem('hw:trash',JSON.stringify(bin.slice(0,1)))}catch(e2){}
+  }
+}
+function undelete(tid){
+  const bin=readTrash(),e=bin.find(x=>x.id===tid);
+  if(!e)return;
+  if(e.kind==='class'){
+    if(S.sections.some(x=>x.id===e.data.id)){alert('That class is already here.');return}
+    S.sections.push(e.data);
+    // it was removed from the sheet's point of view too — resend rebuilds it
+    e.data.items.forEach(x=>{if(x.closed)x.synced=false});
+  }else{
+    const sec2=S.sections.find(x=>x.id===e.sid);
+    if(!sec2){alert('That assignment belonged to a class that no longer exists.');return}
+    if(sec2.items.some(x=>x.id===e.data.id)){alert('That assignment is already here.');return}
+    e.data.synced=false;
+    sec2.items.push(e.data);
+  }
+  localStorage.setItem('hw:trash',JSON.stringify(bin.filter(x=>x.id!==tid)));
+  V.ok=`Restored ${esc(e.label)} — send it to the sheet when you're ready.`;
+  saveAll();go(e.kind==='class'?'home':'section');
+}
+function emptyTrash(){
+  if(!confirm('Empty the recycle bin?\n\nAnything in it is gone for good.'))return;
+  localStorage.removeItem('hw:trash');render();
+}
+VIEWS.trash=function(){
+  const bin=readTrash();
+  const ago=t=>{const d=Math.floor((Date.now()-t)/86400000);
+    return d===0?'today':d===1?'yesterday':d+' days ago'};
+  $('app').innerHTML=head('Recently deleted','',"go('menu')",'Settings')+banner()+
+    (bin.length?`<p class="sub">Deleted classes and assignments are kept here so a mis-tap
+       isn't permanent. Restoring one puts it back unsent — send it to the sheet after.</p>`
+      :`<div class="empty">Nothing deleted recently.</div>`)+
+    bin.map(e=>`<div class="student"><div class="row"><div class="grow">
+        <div class="name trunc">${esc(e.label)}</div>
+        <div class="meta">${e.kind==='class'?'class':'assignment'} · deleted ${ago(e.when)}</div></div>
+        <button class="chip quiet" onclick="undelete('${e.id}')">Restore</button></div></div>`).join('');
+  bar(bin.length?`<button class="btn ghost sm danger" onclick="emptyTrash()">Empty bin</button>
+     <button class="btn ghost sm" onclick="go('menu')">Done</button>`
+    :`<button class="btn ghost" onclick="go('menu')">Done</button>`);
+};
+
 function dropSection(){
   const s=sec(),n=closedHws(s).length,un=unsynced(s).length;
   if(!confirm(`Delete "${s.name}"?\n\n${act(s).length} students and ${n} assignment${n===1?'':'s'} `+
     `will be removed from this phone.\n\n`+(un?`${un} record${un===1?'':'s'} have NOT reached the sheet — those are gone for good.`
       :`Anything already in the sheet stays there.`)))return;
+  toTrash('class',s.name,JSON.parse(JSON.stringify(s)));
   S.sections=S.sections.filter(x=>x.id!==s.id);
-  forget(s.id);V.sid=V.iid=V.hid=null;saveAll();go('home');
+  forget(s.id);V.sid=V.iid=V.hid=null;
+  V.ok=`Deleted "${esc(s.name)}" — recoverable from Settings for now.`;
+  saveAll();go('home');
 }
 
 /* ============ add a class ============ */
@@ -1322,7 +1419,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 30';
+const BUILD='2026-08-21 · 33';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
