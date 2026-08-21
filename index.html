@@ -20,7 +20,7 @@ html,body{margin:0;height:100%}
 body{background:var(--ground);color:var(--ink);font-family:var(--sys);font-size:17px;line-height:1.4;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   -webkit-user-select:none;user-select:none;overscroll-behavior:none}
-#app{max-width:640px;margin:0 auto;padding:0 12px 210px;overflow-x:hidden}
+#app{max-width:640px;margin:0 auto;padding:0 12px 14px;overflow-x:hidden}
 html,body{max-width:100%;overflow-x:hidden}
 
 header{display:flex;align-items:baseline;gap:9px;padding:16px 2px 12px;position:sticky;top:0;
@@ -78,9 +78,16 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .chip.dash{flex:none;width:48px;padding:9px 0;font-size:15px}
 .untouched .name{color:var(--attention)}
 
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 13px}
-.tab{width:100%;height:40px;padding:0;box-sizing:border-box;
-  display:flex;align-items:center;justify-content:center;
+/* grid-auto-rows pins both rows to the same height, so a row can't grow to fit
+   its tallest child. */
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:40px;gap:6px;margin:0 0 13px}
+/* display:block with line-height, NOT flex. Safari won't reliably apply a height
+   to a <button> that is itself a flex container inside a grid — the grid's
+   stretch wins and the buttons come out different sizes. Centring the glyph with
+   line-height sidesteps the whole thing. */
+.tab{width:100%;height:40px;min-height:40px;max-height:40px;align-self:center;
+  padding:0;margin:0;box-sizing:border-box;
+  display:block;line-height:38px;text-align:center;overflow:hidden;
   border-radius:10px;border:1px solid var(--edge);
   font-family:var(--mono);font-size:18px;font-weight:700;color:var(--muted)}
 .tab.todo{border-color:var(--attention);color:var(--attention)}
@@ -388,7 +395,20 @@ function head(title,eyebrow,back,lbl,right){
     <h1>${esc(title)}</h1><span class="eyebrow">${esc(eyebrow||'')}</span>
     ${right||''}</header>`;
 }
-function bar(html){$('bar').innerHTML=html?`<div class="bar"><div class="inner">${html}</div></div>`:''}
+/* Reserve exactly as much room as this screen's bar actually needs. A fixed
+   number can't work: the grading bar (six table buttons plus Done) is roughly
+   twice the height of a one-button bar, so sizing for the tallest left every
+   other screen with dead space at the bottom — enough to make short pages
+   scroll when they shouldn't. */
+function bar(html){
+  const el=$('bar');
+  el.innerHTML=html?`<div class="bar"><div class="inner">${html}</div></div>`:'';
+  const box=el.firstElementChild;
+  const app=$('app');
+  if(app&&app.style){
+    app.style.paddingBottom=(box&&box.offsetHeight?box.offsetHeight+14:14)+'px';
+  }
+}
 function banner(){
   if(V.busy)return `<div class="warnbox"><div class="meta">${esc(V.busy)}</div></div>`;
   if(V.err)return `<div class="warnbox" style="border-color:var(--flag)"><div class="meta" style="color:var(--flag)">${esc(V.err)}</div></div>`;
@@ -1289,7 +1309,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 25';
+const BUILD='2026-08-19 · 27';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
