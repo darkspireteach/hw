@@ -855,6 +855,16 @@ function setLate(id,val){
    replaces the original mark, because it's saying the original was wrong. A
    real result (5/4/NC) fills the original if nothing was ever recorded, or
    lands as a regrade beside it if there was. */
+/* The panel is rebuilt after every tap so the marks and the "now X" line stay
+   right, which throws away where you'd scrolled to. With several outstanding
+   items that means being bounced to the top on every single tap. */
+function panelScroll(y){
+  const wrap=$('sheet').firstElementChild;
+  const box=wrap&&wrap.firstElementChild;
+  if(!box)return 0;
+  if(y!=null)box.scrollTop=y;
+  return box.scrollTop||0;
+}
 function catchUpMark(id,hid,k){
   const s=sec(),h=s.items.find(x=>x.id===hid),v=Object.assign({},h.scores[id]||{});
   if(k==='MU'||k==='AB'){
@@ -867,7 +877,10 @@ function catchUpMark(id,hid,k){
   }else{
     v.rev=/^[0-9]$/.test(k)?+k:k;v.sent=false;
   }
-  h.scores[id]=v;h.synced=false;save();catchUp(id);
+  h.scores[id]=v;h.synced=false;save();
+  const keep=panelScroll();
+  catchUp(id);
+  panelScroll(keep);
 }
 function catchUp(id){
   const s=sec(),it=item(),q=tableQueue(s,id,it?it.id:null);
@@ -1309,7 +1322,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 29';
+const BUILD='2026-08-19 · 30';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
