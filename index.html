@@ -23,13 +23,19 @@ body{background:var(--ground);color:var(--ink);font-family:var(--sys);font-size:
 #app{max-width:640px;margin:0 auto;padding:0 12px 14px;overflow-x:hidden}
 html,body{max-width:100%;overflow-x:hidden;overscroll-behavior-y:none}
 
-header{display:flex;align-items:baseline;gap:9px;padding:16px 2px 12px;position:sticky;top:0;
+header{padding:16px 2px 12px;position:sticky;top:0;
   background:var(--ground);z-index:5;max-width:100%;overflow:hidden}
+.hrow{display:flex;align-items:baseline;gap:9px;max-width:100%}
 .back{flex:none}
 h1{font-size:19px;font-weight:650;letter-spacing:-.2px;margin:0;flex:1 1 auto;min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
   color:var(--muted);flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Declared after .eyebrow deliberately: same specificity, so source order is
+   what lets this undo the nowrap/ellipsis and give a long assignment name the
+   full width, wrapping instead of truncating. */
+.hsub{display:block;margin-top:3px;white-space:normal;overflow:visible;
+  text-overflow:clip;line-height:1.35}
 .sub{color:var(--muted);font-size:14px;margin:-4px 2px 14px}
 .back{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase}
 .cog{font-size:21px;color:var(--muted);padding:0 4px}
@@ -391,9 +397,11 @@ function dupes(list){
 
 /* ============ chrome ============ */
 function head(title,eyebrow,back,lbl,right){
-  return `<header>${back?`<button class="back" onclick="${back}">‹ ${esc(lbl||'Back')}</button>`:''}
-    <h1>${esc(title)}</h1><span class="eyebrow">${esc(eyebrow||'')}</span>
-    ${right||''}</header>`;
+  return `<header><div class="hrow">`+
+    (back?`<button class="back" onclick="${back}">‹ ${esc(lbl||'Back')}</button>`:'')+
+    `<h1>${esc(title)}</h1>${right||''}</div>`+
+    (eyebrow?`<div class="eyebrow hsub">${esc(eyebrow)}</div>`:'')+
+    `</header>`;
 }
 /* Reserve exactly as much room as this screen's bar actually needs. A fixed
    number can't work: the grading bar (six table buttons plus Done) is roughly
@@ -650,7 +658,10 @@ VIEWS.grade=function(){
   const ids=tableIds(s,i);
   const rows=ids.map(id=>gradeRow(s,it,id)).join('')||'<div class="empty">No one at this table.</div>';
   const left=act(s).filter(st=>!(it.scores[st.id]||{}).touched).length;
-  $('app').innerHTML=head(it.title,`Table ${i+1}`,"go('section')",'Class')+
+  // Table number as the title, assignment name beneath: while walking the room
+  // the table is what you need at a glance, and a long assignment name gets the
+  // full width instead of being cut off in the title slot.
+  $('app').innerHTML=head(`Table ${i+1}`,it.title,"go('section')",'Class')+
     `<div class="card">${rows}</div>`;
   bar(`<div class="tabs">${tabs}</div>
       <button class="btn sm" onclick="V.az=false;go('review')">Done grading${left?` — ${left} left`:''}</button>`);
@@ -1419,7 +1430,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-21 · 33';
+const BUILD='2026-08-21 · 34';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
