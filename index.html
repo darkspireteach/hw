@@ -94,7 +94,7 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .tab.todo{border-color:var(--attention);color:var(--attention)}
 .tab.done{color:var(--confirm);border-color:var(--edge)}
 .tab.now{background:var(--raised);color:var(--ink);border-color:var(--ink)}
-.tab.empty{border-color:#26333f;color:#3d4b58}
+.tab.vacant{border-color:#26333f;color:#3d4b58}
 
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px}
 .grid2>*{min-width:0;max-width:100%}
@@ -643,7 +643,7 @@ VIEWS.grade=function(){
   const tabs=order.map(t=>{
     const ids=tableIds(s,t);
     const todo=ids.some(id=>!(it.scores[id]||{}).touched);
-    const cls=t===i?'now':!ids.length?'empty':todo?'todo':'done';
+    const cls=t===i?'now':!ids.length?'vacant':todo?'todo':'done';
     return `<div role="button" class="tab ${cls}" onclick="V.tab=${t};render();window.scrollTo(0,0)">${t+1}</div>`}).join('');
   const ids=tableIds(s,i);
   const rows=ids.map(id=>gradeRow(s,it,id)).join('')||'<div class="empty">No one at this table.</div>';
@@ -1309,7 +1309,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 28';
+const BUILD='2026-08-19 · 29';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
