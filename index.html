@@ -147,7 +147,6 @@ const ATT=[['AB','absent'],['T','tardy'],['TE','excused tardy'],['TX','excessive
 const ABSENT=['AB','TX'];              // these fill a homework AB
 const TABLEQ=['AB','MU','--'];         // interrupts you at the table
 const OPEN=['NC','AB','MU','--'];      // counts as owed in records & late work
-const CARRY=2;                         // table interruptions expire after this many assignments
 const TABLES=6, SEATS=4;
 const DAYL=['Sun','Mon','Tues','Wed','Thurs','Fri','Sat'];
 
@@ -360,12 +359,13 @@ function owedIndex(s){
   return out;
 }
 /* what interrupts you at the table — expires, NC excluded */
+/* Everything still unresolved, oldest first — no lookback window. A student out
+   three days owes every assignment from those three days, and capping the list
+   at the two most recent would quietly drop work still to be collected. The
+   table row shows a count rather than the whole list; the catch-up panel is
+   where it gets worked through. */
 function tableQueue(s,id,exclude){
-  const closed=hws(s).filter(h=>h.closed&&h.id!==exclude), n=closed.length;
-  return closed.filter((h,i)=>{
-    if(n-1-i>=CARRY)return false;
-    return TABLEQ.includes(effective(h.scores[id]));
-  });
+  return hws(s).filter(h=>h.closed&&h.id!==exclude&&TABLEQ.includes(effective(h.scores[id])));
 }
 function pendingSend(s){
   let n=0;hws(s).forEach(h=>Object.values(h.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent)n++}));
@@ -612,10 +612,12 @@ function gradeRow(s,it,id){
       <div class="meta">${esc(nameOf(cur))}${v.auto?' · auto':''}</div></div>
       <button class="chip dash ${un?'on warn':'quiet'}" onclick="setMark('${id}','--')">—</button></div>
     <div class="strip">${MARKS.map(m=>chip(m[0],cur===m[0])).join('')}</div>
-    ${q.map(o=>`<div class="warnbox" style="margin:7px 0 0"><div class="row"><div class="grow">
-      <div class="meta" style="color:var(--attention)">${o.scores[id].code==='--'?'I never checked':'Owes'} ${esc(o.title)}</div></div>
-      <button class="chip quiet" style="width:74px;padding:8px 0" onclick="reviseSheet('${id}','${o.id}')">Score</button>
-      </div></div>`).join('')}
+    ${q.length?`<div class="warnbox" style="margin:7px 0 0"><div class="row"><div class="grow">
+      <div class="meta" style="color:var(--attention)">${q.length===1
+        ? (effective(q[0].scores[id])==='--'?'I never checked '+esc(q[0].title):'Owes '+esc(q[0].title))
+        : `Owes ${q.length} — ${esc(q[0].title)} to ${esc(q[q.length-1].title)}`}</div></div>
+      <button class="chip quiet" style="width:82px;padding:8px 0" onclick="catchUp('${id}')">Catch up</button>
+      </div></div>`:''}
   </div>`;
 }
 function setMark(id,k){
@@ -788,25 +790,41 @@ function applyScore(h,id,val){
 function setLate(id,val){
   const h=item();applyScore(h,id,val);save();render();
 }
-function reviseSheet(id,hid){
-  const s=sec(),h=s.items.find(x=>x.id===hid),v=h.scores[id]||{},cur=markOf(v)||'--';
-  panel(`<div class="eyebrow">${esc(label(stu(s,id)))}</div>
-    <div class="rv ${toneOf(cur)==='bad'?'bad':toneOf(cur)==='info'?'info':'none'}" style="margin:10px 0 4px">
-      <span class="mk">${esc(show(cur))}</span>
-      <span class="who">${esc(h.title)}</span>
-      <span class="meta">${esc(when(h.date))}</span></div>
-    <p class="sub" style="margin:12px 0 6px">${fillsOriginal(v)
-      ? 'Score — this fills the original column, since nothing was ever recorded'
-      : 'Regrade — the original stays as it is'}</p>
-    <div class="strip four">${['5','4','NC'].map(k=>{
-      const on=fillsOriginal(v)?markOf(v)===k:v.rev==(/^[0-9]$/.test(k)?+k:k);
-      return `<button class="chip ${on?'on '+toneOf(k):''}"
-        onclick="setRev('${id}','${hid}','${k}')">${k}</button>`}).join('')}
-      <button class="chip quiet" onclick="closeSheet()">Cancel</button></div>`);
+/* One panel, everything this student still owes. A status correction (MU/AB)
+   replaces the original mark, because it's saying the original was wrong. A
+   real result (5/4/NC) fills the original if nothing was ever recorded, or
+   lands as a regrade beside it if there was. */
+function catchUpMark(id,hid,k){
+  const s=sec(),h=s.items.find(x=>x.id===hid),v=Object.assign({},h.scores[id]||{});
+  if(k==='MU'||k==='AB'){
+    delete v.val;delete v.rev;delete v.sent;delete v.missed;delete v.auto;
+    v.code=k;v.touched=true;
+  }else if(fillsOriginal(v)){
+    delete v.missed;delete v.code;delete v.val;delete v.auto;
+    if(/^[0-9]$/.test(k))v.val=+k;else v.code=k;
+    v.touched=true;
+  }else{
+    v.rev=/^[0-9]$/.test(k)?+k:k;v.sent=false;
+  }
+  h.scores[id]=v;h.synced=false;save();catchUp(id);
 }
-function setRev(id,hid,val){
-  const s=sec(),h=s.items.find(x=>x.id===hid);
-  applyScore(h,id,val);save();closeSheet();render();
+function catchUp(id){
+  const s=sec(),it=item(),q=tableQueue(s,id,it?it.id:null);
+  if(!q.length){closeSheet();render();return}
+  panel(`<div class="eyebrow">${esc(label(stu(s,id)))} · ${q.length} outstanding</div>
+    <p class="sub" style="margin:10px 0 4px">Oldest first. MU and AB correct the mark itself;
+      a number or NC records what they actually turned in.</p>
+    ${q.map(h=>{
+      const v=h.scores[id]||{},cur=effective(v)||'--';
+      return `<div class="student">
+        <div class="row"><div class="grow">
+          <div class="name trunc">${esc(h.title)}</div>
+          <div class="meta">${esc(when(h.date))} · now ${esc(show(cur))}</div></div></div>
+        <div class="strip">${['5','4','NC','MU','AB'].map(k=>
+          `<button class="chip ${cur===k?'on '+toneOf(k):''}"
+            onclick="catchUpMark('${id}','${h.id}','${k}')">${k}</button>`).join('')}</div>
+      </div>`}).join('')}
+    <button class="btn ghost sm" onclick="closeSheet();render()">Done</button>`);
 }
 
 /* ============ student records ============ */
@@ -1230,7 +1248,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-19 · 21';
+const BUILD='2026-08-19 · 22';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
