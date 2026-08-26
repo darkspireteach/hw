@@ -292,16 +292,22 @@ function mkSection(name,raw){
   return s;
 }
 function parseRoster(raw){
+  const byComma=t=>{const p=t.split(',');
+    return {id:uid(),last:(p[0]||'').trim(),first:(p.slice(1).join(',')||'').trim()}};
   return String(raw||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(line=>{
     if(line.indexOf('\t')>=0){                       // pasted from a spreadsheet
+      const cells=line.split('\t').map(c=>c.trim()).filter(Boolean);
+      // A whole name can sit in ONE cell as "Cox, Brian", with row numbers or
+      // other columns beside it. Splitting on tabs first would make the name the
+      // last name and the neighbouring column the first name, so a cell that
+      // contains a comma is treated as the name and read that way.
+      const named=cells.find(c=>c.indexOf(',')>=0);
+      if(named)return byComma(named);
       const p=line.split('\t');
       return {id:uid(),last:(p[0]||'').trim(),first:(p[1]||'').trim(),
               extra:(p[2]||'').trim(),cubby:(p[3]||'').trim()};
     }
-    if(line.indexOf(',')>=0){                        // "Cox, Brian"
-      const p=line.split(',');
-      return {id:uid(),last:(p[0]||'').trim(),first:(p.slice(1).join(',')||'').trim()};
-    }
+    if(line.indexOf(',')>=0)return byComma(line);    // "Cox, Brian"
     // typed by hand, spaces only — no Tab key on an iPhone. Read it as
     // "Brian Cox": everything before the final word is the first name.
     const w=line.split(/\s+/);
@@ -1430,7 +1436,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-21 · 34';
+const BUILD='2026-08-25 · 35';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
