@@ -201,7 +201,14 @@ function load(){
       if(legacy){const o=JSON.parse(legacy)||{};cfg=o.cfg||{};sections=o.sections||[]}
     }
   }catch(e){}
-  if(!sections.length)sections=[demo()];
+  // The sample class exists to give a brand-new install something to poke at.
+  // Seeding it whenever there are zero classes meant deleting your last class
+  // silently recreated it — the delete looked broken. Seed only on a genuinely
+  // first run: no index written yet, and nothing in the recycle bin either.
+  if(!sections.length&&localStorage.getItem('hw:index')===null
+     &&!(localStorage.getItem('hw:trash')||'').length){
+    sections=[demo()];
+  }
   sections.forEach(migrate);
   return {sections,cfg};
 }
@@ -1436,7 +1443,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-25 · 35';
+const BUILD='2026-08-25 · 36';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
