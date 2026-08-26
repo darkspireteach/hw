@@ -86,7 +86,9 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 
 /* grid-auto-rows pins both rows to the same height, so a row can't grow to fit
    its tallest child. */
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:40px;gap:6px;margin:0 0 13px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:40px;gap:6px;margin:0 0 13px}
+/* holds the empty slot at the start of the front-row line */
+.ghostcell{border:0;background:none;pointer-events:none}
 /* display:block with line-height, NOT flex. Safari won't reliably apply a height
    to a <button> that is itself a flex container inside a grid — the grid's
    stretch wins and the buttons come out different sizes. Centring the glyph with
@@ -164,7 +166,7 @@ const ATT=[['AB','absent'],['T','tardy'],['TE','excused tardy'],['TX','excessive
 const ABSENT=['AB','TX'];              // these fill a homework AB
 const TABLEQ=['AB','MU','--'];         // interrupts you at the table
 const OPEN=['NC','AB','MU','--'];      // counts as owed in records & late work
-const TABLES=6, SEATS=4;
+const TABLES=7, SEATS=4;   // seven pods of four — 28 seats
 const DAYL=['Sun','Mon','Tues','Wed','Thurs','Fri','Sat'];
 
 const $=id=>document.getElementById(id);
@@ -660,14 +662,21 @@ function doneAtt(){const it=item();it.closed=true;save();go('section');syncSecti
 /* ============ grading at the tables ============ */
 VIEWS.grade=function(){
   const s=sec(),it=item(),i=V.tab||0;
-  const order=[3,4,5,2,1,0];
+  // The sheet is drawn facing the room; the app is seen from where he stands,
+  // so it reads rotated: the back row (7 6 5 4) sits on top as 4 5 6 7, and the
+  // front row (1 2 3) below as 3 2 1 — right-aligned, because the front row is
+  // left-aligned in the room and the rotation flips that.
+  const order=[3,4,5,6,2,1,0];
   // table buttons live in the fixed bar: after grading four students your thumb
   // is already at the bottom of the screen, so the next table is right there
   const tabs=order.map(t=>{
     const ids=tableIds(s,t);
     const todo=ids.some(id=>!(it.scores[id]||{}).touched);
     const cls=t===i?'now':!ids.length?'vacant':todo?'todo':'done';
-    return `<div role="button" class="tab ${cls}" onclick="V.tab=${t};render();window.scrollTo(0,0)">${t+1}</div>`}).join('');
+    // an empty cell before the second row so the three front-row buttons sit
+    // under the right-hand end, matching the room once rotated
+    const gap=(t===2)?'<div class="tab ghostcell"></div>':'';
+    return gap+`<div role="button" class="tab ${cls}" onclick="V.tab=${t};render();window.scrollTo(0,0)">${t+1}</div>`}).join('');
   const ids=tableIds(s,i);
   const rows=ids.map(id=>gradeRow(s,it,id)).join('')||'<div class="empty">No one at this table.</div>';
   const left=act(s).filter(st=>!(it.scores[st.id]||{}).touched).length;
@@ -1014,7 +1023,7 @@ function setHist(hid,kind,val){
 
 /* ============ seating ============ */
 VIEWS.seats=function(){
-  const s=sec(),order=[3,4,5,2,1,0];
+  const s=sec(),order=[3,4,5,6,2,1,0];
   const grid=order.map(t=>`<div class="card" style="margin:0;padding:9px">
     <div class="eyebrow">Table ${t+1}</div>
     ${s.tables[t].map((id,k)=>{const st=id&&stu(s,id);
@@ -1443,7 +1452,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-25 · 36';
+const BUILD='2026-08-25 · 37';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
