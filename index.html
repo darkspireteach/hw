@@ -1354,7 +1354,28 @@ async function syncSection(id,quiet,full){
   // the payload is a complete history — it's the only time it's safe for the
   // script to remove a column nothing here matches
   full=!!full&&pend.length===closedHws(s).length+sessions(s).filter(x=>x.closed).length;
-  if(!pend.length){if(!quiet)alert('Nothing new to send.');return}
+  // With nothing pending we used to return without contacting the script at
+  // all — which meant any sheet-side fix (formatting, a corrected rule, a moved
+  // column) silently skipped every idle class. An explicit tap now always sends
+  // the roster, so the sheet gets rebuilt even when no scores are waiting.
+  if(!pend.length){
+    if(quiet)return;
+    V.busy='Refreshing the sheet…';V.err=V.ok=null;render();
+    try{
+      const roster0=act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,
+        seat:seatName(st),full:fullSeat(st)}));
+      const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({token:c.token,section:s.name,idx:S.sections.indexOf(s),
+          students:roster0,items:[]})});
+      const d=await r.json();
+      V.busy=null;
+      V.ok=d.ok?'Nothing new to send — sheet refreshed.':(d.error||'The sheet refused the request.');
+      if(!d.ok)V.err=V.ok,V.ok=null;
+    }catch(e){
+      V.busy=null;V.err='Could not reach the sheet.';
+    }
+    render();return;
+  }
 
   const key=st=>`${st.last.trim().toLowerCase()}|${st.first.trim().toLowerCase()}`;
   const kk={};s.students.forEach(st=>kk[st.id]=key(st));
@@ -1452,7 +1473,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-25 · 37';
+const BUILD='2026-08-25 · 38';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
