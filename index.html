@@ -640,7 +640,9 @@ VIEWS.attendance=function(){
       <div class="code">${esc(c)} · ${esc((ATT.find(a=>a[0]===c)||[,''])[1])}</div></button>`}).join('');
   const ex=Object.values(it.attendance).filter(c=>c&&c!=='P').length;
   $('app').innerHTML=head('Attendance',when(it.date),"go('section')",'Class')+
-    `<p class="sub">Everyone starts present. Tap only the exceptions.</p><div class="grid2">${cells}</div>`;
+    `<p class="sub">Everyone starts present. Tap only the exceptions.</p><div class="grid2">${cells}</div>
+     <button class="btn ghost sm danger" style="margin-top:16px" onclick="dropItemNow()">
+       Delete this attendance</button>`;
   bar(`<button class="btn" onclick="doneAtt()">Done — ${ex} exception${ex===1?'':'s'}</button>`);
 };
 const byName=(a,b)=>(a.last+a.first).localeCompare(b.last+b.first);
@@ -801,10 +803,19 @@ async function dropItemNow(){
   const s=sec(),it=item(),c=S.cfg;
   if(!it)return;
   const marks=Object.keys(it.kind==='session'?(it.attendance||{}):(it.scores||{})).length;
+  // Deleting attendance has to undo the absences it caused. An AB filled in
+  // automatically because someone was marked absent that day is evidence of
+  // that attendance record — leaving it behind would attribute a mark to an
+  // absence that no longer exists. A mark you set yourself is left alone.
+  const autos=it.kind==='session'
+    ? hws(s).filter(h=>h.date===it.date).reduce((n,h)=>
+        n+Object.values(h.scores).filter(v=>v&&v.auto).length,0)
+    : 0;
   if(!confirm(`Delete "${it.title||'attendance'}" from ${when(it.date)}?\n\n`+
     `${marks} mark${marks===1?'':'s'} will be removed from this phone`+
+    (autos?`, along with ${autos} absence mark${autos===1?'':'s'} it filled in automatically`:'')+
     (it.closed?' and its columns cleared from the sheet.':'.')+
-    `\n\nThis cannot be undone.`))return;
+    `\n\nRecoverable from Settings afterwards.`))return;
 
   if(it.closed&&c.url&&c.token){
     closeSheet();V.busy='Clearing it from the sheet…';V.err=V.ok=null;render();
@@ -820,6 +831,16 @@ async function dropItemNow(){
   }
   toTrash('item',it.title||('attendance '+when(it.date)),
     JSON.parse(JSON.stringify(it)),{sid:s.id});
+  if(it.kind==='session'){
+    hws(s).filter(h=>h.date===it.date).forEach(h=>{
+      let hit=false;
+      Object.keys(h.scores).forEach(id=>{
+        const v=h.scores[id];
+        if(v&&v.auto){delete h.scores[id];hit=true}
+      });
+      if(hit)h.synced=false;
+    });
+  }
   s.items=s.items.filter(x=>x.id!==it.id);
   if(V.iid===it.id)V.iid=null;
   V.busy=null;V.ok=`Deleted ${esc(it.title||'attendance')} — recoverable from Settings.`;
@@ -1473,7 +1494,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-25 · 38';
+const BUILD='2026-08-27 · 39';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
