@@ -654,7 +654,16 @@ VIEWS.attendance=function(){
        Delete this attendance</button>`;
   bar(`<button class="btn" onclick="doneAtt()">Done — ${ex} exception${ex===1?'':'s'}</button>`);
 };
-const byName=(a,b)=>(a.last+a.first).localeCompare(b.last+b.first);
+/* Aspen ignores punctuation when it alphabetises — that's why it files O'Rei
+   after Ording, where a plain sort puts the apostrophe first. Matching that
+   convention here so the app, the sheet and Aspen all read in the same order
+   and nothing has to be cross-referenced by eye.
+   Spaces count as punctuation too, so Van Dyke files under "vandyke". */
+const sortKey=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const byName=(a,b)=>{
+  const x=sortKey(a.last)+' '+sortKey(a.first), y=sortKey(b.last)+' '+sortKey(b.first);
+  return x<y?-1:x>y?1:0;
+};
 function pickAtt(id){
   const s=sec();
   panel(`<div class="eyebrow">${esc(label(stu(s,id)))}</div>
@@ -1542,7 +1551,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-27 · 41';
+const BUILD='2026-08-27 · 42';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
