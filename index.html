@@ -331,7 +331,16 @@ const item=()=>{const s=sec();return s&&s.items.find(x=>x.id===V.iid)};
 const stu=(s,id)=>s.students.find(x=>x.id===id);
 const act=s=>s.students.filter(st=>!st.out);
 const gone=s=>s.students.filter(st=>st.out);
-const label=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
+/* What you see in the app while grading: what they actually go by. The Grades
+   and Attend tabs still carry the formal name — those are the record, and the
+   app sends last/first straight from the roster for them. */
+const label=st=>{
+  if(!st)return '';
+  const given=(st.pref||st.first||'').trim();
+  return `${st.last}${given?', '+given:''}`;
+};
+/* the formal name, for anywhere that has to be the official record */
+const formal=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
 /* the seating chart always uses what they go by: "Alex B." */
 /* A cubby number, once given, is that student's for the year — a withdrawal
    never renumbers anyone else. The vacated number does become available again,
@@ -1131,7 +1140,10 @@ VIEWS.roster=function(){
   const s=sec(),left=gone(s);
   const row=(st,arch)=>`<div class="rv" style="margin-bottom:6px">
     <button class="who" style="text-align:left;${arch?'color:var(--muted)':''}"
-      onclick="editName('${st.id}')">${esc(label(st))}${st.first?'':' ⚠'}</button>
+      onclick="editName('${st.id}')"><span class="mk" style="color:var(--muted)">${
+        st.num||'—'}</span>  ${esc(formal(st))}${st.first?'':' ⚠'}${
+        st.pref&&st.pref.trim()&&st.pref.trim()!==st.first
+          ?`<span class="meta"> · goes by ${esc(st.pref.trim())}</span>`:''}</button>
     <button class="chip quiet" style="width:82px;padding:8px 0"
       onclick="${arch?`unarchive('${st.id}')`:`archive('${st.id}')`}">${arch?'Restore':'Remove'}</button></div>`;
   $('app').innerHTML=head('Roster',esc(s.name),"go('section')",'Class')+
@@ -1193,16 +1205,52 @@ function editName(id){
     </div>
     <div style="height:7px"></div>
     <input type="text" id="epref" value="${esc(st.pref||'')}" placeholder="Goes by (for the seating chart)" autocomplete="off">
+    <div style="height:7px"></div>
+    <input type="number" inputmode="numeric" id="enum" value="${st.num||''}"
+      placeholder="Cubby number (1-30)" autocomplete="off">
+    <div class="meta" style="margin-top:6px">${cubbyHint(s,st)}</div>
     <div class="meta" style="margin-top:9px">The sheet keys rows on the name, so a corrected name
       gets a fresh row — delete the old one there by hand.</div>
     <button class="btn" onclick="saveName('${id}')">Save</button>
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
+/* Which numbers are still free, so the panel can say so rather than making you
+   guess and get rejected. */
+function freeCubbies(s,st){
+  const taken={};
+  s.students.filter(x=>!x.out&&x!==st).forEach(x=>{if(x.num)taken[x.num]=true});
+  const free=[];
+  for(let n=1;n<=30;n++)if(!taken[n])free.push(n);
+  return free;
+}
+function cubbyHint(s,st){
+  const free=freeCubbies(s,st);
+  if(!free.length)return 'Every number 1-30 is taken.';
+  const show=free.slice(0,12).join(', ')+(free.length>12?'…':'');
+  return 'Free: '+show;
+}
 function saveName(id){
   const s=sec(),st=stu(s,id);
   const l=($('elast').value||'').trim(),f=($('efirst').value||'').trim(),p=($('epref').value||'').trim();
   if(!l&&!f)return alert('Enter at least a last name.');
-  st.last=l;st.first=f;st.pref=p;
+
+  const raw=($('enum').value||'').trim();
+  let num=st.num;
+  if(raw===''){num=null}
+  else{
+    const n=parseInt(raw,10);
+    if(!(n>=1&&n<=30))return alert('Cubby number must be between 1 and 30.');
+    // swap rather than refuse: if someone else holds it, they take this one,
+    // which is almost always what a fix like this means
+    const holder=s.students.find(x=>!x.out&&x!==st&&x.num===n);
+    if(holder){
+      if(!confirm(`${label(holder)} has cubby ${n}.\n\n`+
+        `Swap: ${label(holder)} takes ${st.num||'no number'}, ${label(st)} takes ${n}?`))return;
+      holder.num=st.num||null;
+    }
+    num=n;
+  }
+  st.last=l;st.first=f;st.pref=p;st.num=num;
   s.items.forEach(x=>{if(x.closed)x.synced=false});   // rewrite under the new name
   save();closeSheet();render();
 }
@@ -1494,7 +1542,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-27 · 39';
+const BUILD='2026-08-27 · 41';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
@@ -1577,7 +1625,9 @@ async function pushCubbies(){
   V.busy='Building the cubby list…';V.err=V.ok=null;render();
   const classes=S.sections.map(s=>({
     name:s.name,
-    students:act(s).slice().sort(byName).map(st=>({last:st.last,first:st.first,num:st.num||''}))
+    // student-facing print, like the seating chart — what they go by
+    students:act(s).slice().sort(byName).map(st=>({last:st.last,
+      first:(st.pref||st.first||'').trim(),num:st.num||''}))
   })).filter(x=>x.students.length);
   if(!classes.length){V.busy=null;V.err='No students to list yet.';render();return}
   try{
