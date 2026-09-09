@@ -609,6 +609,11 @@ function newHwSheet(){
   panel(`<div class="eyebrow">${esc(s.name)}</div>
     <h1 style="margin:6px 0 12px">New assignment</h1>
     <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
+    <div class="grid2" style="margin-top:9px">
+      <input type="number" inputmode="numeric" id="sseq" value="${nextSeq(s)}" placeholder="Seq #" autocomplete="off">
+      <input type="text" id="scode" value="" placeholder="e.g. 00.A.1" autocomplete="off">
+    </div>
+    <div class="meta" style="margin-top:5px">Both sit ahead of the name on the gradebook column.</div>
     ${recent.length?`<div class="tally" style="margin:8px 0 0">${recent.map(r=>
       `<span onclick="useTitle('${esc(r.title).replace(/'/g,"\\'")}')" style="cursor:pointer"
         title="${esc(r.from)}">${esc(r.title)}</span>`).join('')}</div>
@@ -620,9 +625,23 @@ function newHwSheet(){
     <button class="btn ghost" onclick="createHw(true)">Grade a stack</button>
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
+/* The gradebook column heading: the numbers you file the work under, then the
+   name. Kept as separate fields in the app so the numbering stays editable and
+   the title stays readable — they are only joined for the sheet. */
+function sheetTitle(it){
+  return [String(it.seq==null?'':it.seq).trim(),
+          String(it.code||'').trim(),
+          String(it.title||'').trim()].filter(Boolean).join(' · ');
+}
+function nextSeq(s){
+  const used=hws(s).map(h=>Number(h.seq)).filter(n=>n>0);
+  return used.length?Math.max.apply(null,used)+1:1;
+}
 function createHw(stack){
   const s=sec(),t=($('ttl').value||'HW').trim(),d=$('dte').value||today();
-  const it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack};
+  const sq=($('sseq').value||'').trim(), cd=($('scode').value||'').trim();
+  const it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack,
+    seq:sq===''?null:Number(sq),code:cd};
   fillAbsences(s,it);
   s.items.push(it);V.iid=it.id;V.az=!!stack;V.tab=0;save();
   closeSheet();go(stack?'review':'grade');
@@ -654,6 +673,21 @@ VIEWS.attendance=function(){
        Delete this attendance</button>`;
   bar(`<button class="btn" onclick="doneAtt()">Done — ${ex} exception${ex===1?'':'s'}</button>`);
 };
+/* Two columns read top-to-bottom, not left-to-right. A stack in your hand is
+   in one alphabetical run, so the screen should be too — bouncing across the
+   page between each name is what makes it easy to lose your place. */
+function downColumns(list,cols){
+  cols=cols||2;
+  const rows=Math.ceil(list.length/cols),out=[];
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const i=c*rows+r;
+      if(i<list.length)out.push(list[i]);
+    }
+  }
+  return out;
+}
+
 /* Aspen ignores punctuation when it alphabetises — that's why it files O'Rei
    after Ording, where a plain sort puts the apostrophe first. Matching that
    convention here so the app, the sheet and Aspen all read in the same order
@@ -749,7 +783,7 @@ VIEWS.review=function(){
   };
   let cells;
   if(V.az){
-    cells=`<div class="grid2">${act(s).slice().sort(byName).map(x=>cell(x.id)).join('')}</div>`;
+    cells=`<div class="grid2">${downColumns(act(s).slice().sort(byName)).map(x=>cell(x.id)).join('')}</div>`;
   }else{
     // grouped by table, so what's on screen matches how you walked the room
     cells=[3,4,5,2,1,0].map(t=>{
@@ -808,7 +842,12 @@ function editSheet(){
     <input type="text" id="ren" value="${esc(it.title)}" autocomplete="off">
     <div style="height:9px"></div>
     <input type="date" id="rdt" value="${esc(it.date)}">
+    <div class="grid2" style="margin-top:9px">
+      <input type="number" inputmode="numeric" id="rseq" value="${it.seq==null?'':it.seq}" placeholder="Seq #" autocomplete="off">
+      <input type="text" id="rcode" value="${esc(it.code||'')}" placeholder="e.g. 00.A.1" autocomplete="off">
+    </div>
     <button class="btn" onclick="doRename()">Save</button>
+    <button class="btn ghost sm" onclick="clearScores()">Clear every score and regrade</button>
     <button class="btn ghost sm danger" onclick="dropItemNow()">Delete this assignment</button>
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
@@ -817,6 +856,29 @@ function editSheet(){
    sits there orphaned holding scores for something that no longer exists. The
    sheet is cleared first: if that fails, nothing is removed here either, so the
    two never disagree. */
+/* Start an assignment's grading over. The assignment itself stays — same title,
+   same date, same place in the sheet — but every mark is cleared and it reopens
+   for grading. Absences for that day fill back in automatically, since those
+   were never your mistake. The old marks go to the recycle bin first. */
+function clearScores(){
+  const s=sec(),it=item();
+  if(!it||it.kind!=='hw')return;
+  const n=Object.values(it.scores||{}).filter(v=>v&&v.touched).length;
+  if(!confirm(`Clear every score on "${it.title||'this assignment'}"?\n\n`+
+    `${n} mark${n===1?'':'s'} will be wiped and the assignment reopened for grading.\n`+
+    `Absences for ${when(it.date)} fill back in on their own.\n\n`+
+    `The old marks go to Recently deleted.`))return;
+  toTrash('item',(it.title||'assignment')+' — marks before clearing',
+    JSON.parse(JSON.stringify(it)),{sid:s.id});
+  it.scores={};
+  fillAbsences(s,it);
+  it.closed=false;
+  it.synced=false;
+  save();closeSheet();
+  V.az=!!it.stack;V.tab=0;
+  go(it.stack?'review':'grade');
+}
+
 async function dropItemNow(){
   const s=sec(),it=item(),c=S.cfg;
   if(!it)return;
@@ -867,6 +929,8 @@ async function dropItemNow(){
 function doRename(){
   const s=sec(),it=item(),t=($('ren').value||'').trim(),d=$('rdt').value||it.date;
   if(t)it.title=t;
+  const sq=($('rseq').value||'').trim(), cd=($('rcode').value||'').trim();
+  it.seq=sq===''?null:Number(sq);it.code=cd;
   if(d!==it.date){it.date=d;fillAbsences(s,it)}
   it.synced=false;save();closeSheet();render();
 }
@@ -1463,7 +1527,7 @@ async function syncSection(id,quiet,full){
   const pack=x=>{
     const o={id:x.id,kind:x.kind,date:x.date,iso:x.date,label:when(x.date)};
     if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
-    else{o.title=x.title;o.scores={};
+    else{o.title=sheetTitle(x);o.scores={};
       s.students.forEach(st=>{const v=x.scores[st.id];
         if(v)o.scores[kk[st.id]]={val:v.val,code:v.code,rev:v.rev,sent:!!v.sent}})}
     return o;
@@ -1551,7 +1615,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-08-27 · 42';
+const BUILD='2026-09-02 · 43';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
