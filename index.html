@@ -559,7 +559,8 @@ VIEWS.section=function(){
        onclick="syncSection('${s.id}',false)">${un?`Send ${un} to the sheet`:'Everything is in the sheet'}</button>
      <button class="btn ghost sm" style="margin-top:9px${pend?'':';color:var(--muted)'}"
        onclick="markSentFor('${s.id}')">${pend?`Clear ${pend} regrade highlight${pend===1?'':'s'}`
-         :'No regrades waiting on Schoology'}</button>`;
+         :'No regrades waiting on Schoology'}</button>
+     <button class="btn ghost sm" style="margin-top:9px" onclick="pullTitles()">Read headings from the sheet</button>`;
   bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
         ${sess?'Attendance — edit':'Take attendance'}</button>
       <button class="btn ghost" onclick="newHwSheet()">Grade an assignment</button>`);
@@ -631,13 +632,14 @@ function newHwSheet(){
     <button class="btn ghost" onclick="createHw(true)">Grade a stack</button>
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
-/* The gradebook column heading: the name number, the name, then the item
-   number. Kept as separate fields in the app so the numbering stays editable
-   and the title stays readable — they are only joined for the sheet. A title
-   that is just the code (what a blank name falls back to) isn't repeated. */
-function sheetTitle(it){
+/* The heading is three separate cells on the sheet — name number, item number,
+   name — so each one can be retyped there and read back without anything
+   having to be parsed apart. The name cell holds the name alone; when a blank
+   name has fallen back to the code, the cell is left empty rather than
+   repeating the number that already sits above it. */
+function nameOnly(it){
   const c=String(it.code||'').trim(), t=String(it.title||'').trim();
-  return [c, t===c?'':t, String(it.seq==null?'':it.seq).trim()].filter(Boolean).join(' · ');
+  return t===c?'':t;
 }
 function nextSeq(s){
   const used=hws(s).map(h=>Number(h.seq)).filter(n=>n>0);
@@ -646,7 +648,8 @@ function nextSeq(s){
 function createHw(stack){
   const s=sec(),d=$('dte').value||today();
   const sq=($('sseq').value||'').trim(), cd=($('scode').value||'').trim();
-  // left blank, the assignment goes by its number — sheetTitle drops the repeat
+  // left blank, the assignment goes by its number — the sheet's name cell
+  // is left empty rather than repeating it
   const t=($('ttl').value||'').trim()||cd||'HW';
   const it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack,
     seq:sq===''?null:Number(sq),code:cd};
@@ -1211,6 +1214,50 @@ async function pullSeats(){
     V.busy=null;V.err='Could not reach the sheet. Your current seating is unchanged.';render();
   }
 }
+/* Read the headings back out of the gradebook. Each column is tagged with the
+   assignment's own id, so all three fields can be retyped in the sheet without
+   anything having to be matched by name.
+
+   Two rules keep this from destroying work. An assignment with something still
+   waiting to send is skipped — the app has a newer version of it than the
+   sheet does, and the sheet's text is about to be overwritten anyway. And a
+   blank cell means "not filled in", never "clear this" — to empty a field, use
+   edit ✎ in the app. Those two together mean the worst a mistimed pull can do
+   is nothing. */
+async function pullTitles(){
+  const s=sec(),c=S.cfg;
+  if(!c.url||!c.token){alert('Connect your sheet first — Settings, Sheet sync.');return}
+  V.busy='Reading the headings…';V.err=V.ok=null;render();
+  try{
+    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:c.token,action:'titles',section:s.name})});
+    const d=await r.json();
+    V.busy=null;
+    if(!d.ok){V.err=d.error||'Could not read the headings.';render();return}
+    const mine={};hws(s).forEach(h=>mine[h.id]=h);
+    let changed=0,held=0,unknown=0;
+    (d.items||[]).forEach(x=>{
+      const h=mine[x.id];
+      if(!h){unknown++;return}
+      if(!h.synced){held++;return}
+      const seq=x.seq===''?null:Number(x.seq);
+      let hit=false;
+      if(x.code&&x.code!==h.code){h.code=x.code;hit=true}
+      if(x.title&&x.title!==h.title){h.title=x.title;hit=true}
+      if(x.seq!==''&&!isNaN(seq)&&seq!==h.seq){h.seq=seq;hit=true}
+      if(hit)changed++;
+    });
+    save();
+    V.ok=changed?`Updated ${changed} assignment${changed===1?'':'s'}`+
+        (held?` · ${held} skipped, still unsent`:'')
+      :(held?`Nothing changed · ${held} skipped, still unsent`
+        :d.bands===false?'That gradebook has no heading rows yet — send this class to the sheet once first.'
+        :'Nothing to update — the sheet matches the app.');
+    render();
+  }catch(e){
+    V.busy=null;V.err='Could not reach the sheet. Nothing was changed.';render();
+  }
+}
 function autoSeat(){
   const s=sec();
   unseated(s).slice().sort(byName).forEach(st=>place(s.tables,st.id));
@@ -1536,7 +1583,7 @@ async function syncSection(id,quiet,full){
   const pack=x=>{
     const o={id:x.id,kind:x.kind,date:x.date,iso:x.date,label:when(x.date)};
     if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
-    else{o.title=sheetTitle(x);o.scores={};
+    else{o.title=nameOnly(x);o.code=x.code||'';o.seq=x.seq==null?'':x.seq;o.scores={};
       s.students.forEach(st=>{const v=x.scores[st.id];
         if(v)o.scores[kk[st.id]]={val:v.val,code:v.code,rev:v.rev,sent:!!v.sent}})}
     return o;
@@ -1624,7 +1671,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 45';
+const BUILD='2026-09-10 · 46';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
