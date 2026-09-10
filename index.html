@@ -58,9 +58,14 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
 .btn.warn{background:var(--attention);color:#231603}
 .btn.danger{color:var(--flag);border-color:var(--flag)}
 
-textarea,input[type=text],input[type=date]{width:100%;max-width:100%;min-width:0;background:var(--ground);
+textarea,input[type=text],input[type=date],input[type=number]{width:100%;max-width:100%;min-width:0;background:var(--ground);
   border:1px solid var(--edge);border-radius:11px;color:var(--ink);padding:13px;font-size:17px;
   -webkit-user-select:text;user-select:text}
+/* number boxes carry a stepper by default, which would make them taller than
+   the text box beside them and eat the right-hand padding */
+input[type=number]{-webkit-appearance:none;appearance:none;font-family:var(--sys)}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=date]{-webkit-appearance:none;appearance:none;display:block;height:50px;
   font-family:var(--sys);text-align:left}
 input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
@@ -604,16 +609,17 @@ function recentTitles(s){
 function useTitle(t){$('ttl').value=t}
 
 function newHwSheet(){
-  const s=sec(),n=hws(s).length+1;
+  const s=sec();
   const recent=recentTitles(s);
   panel(`<div class="eyebrow">${esc(s.name)}</div>
     <h1 style="margin:6px 0 12px">New assignment</h1>
-    <input type="text" id="ttl" value="HW ${n}" autocomplete="off">
-    <div class="grid2" style="margin-top:9px">
-      <input type="number" inputmode="numeric" id="sseq" value="${nextSeq(s)}" placeholder="Seq #" autocomplete="off">
-      <input type="text" id="scode" value="" placeholder="e.g. 00.A.1" autocomplete="off">
+    <div class="grid2">
+      <input type="text" id="scode" value="" placeholder="e.g. 00.E.1" autocomplete="off">
+      <input type="number" inputmode="numeric" id="sseq" value="${nextSeq(s)}" placeholder="Item #" autocomplete="off">
     </div>
-    <div class="meta" style="margin-top:5px">Both sit ahead of the name on the gradebook column.</div>
+    <div style="height:9px"></div>
+    <input type="text" id="ttl" value="" placeholder="Name (optional)" autocomplete="off">
+    <div class="meta" style="margin-top:5px">The gradebook column reads 00.E.1 · name · item.</div>
     ${recent.length?`<div class="tally" style="margin:8px 0 0">${recent.map(r=>
       `<span onclick="useTitle('${esc(r.title).replace(/'/g,"\\'")}')" style="cursor:pointer"
         title="${esc(r.from)}">${esc(r.title)}</span>`).join('')}</div>
@@ -625,21 +631,23 @@ function newHwSheet(){
     <button class="btn ghost" onclick="createHw(true)">Grade a stack</button>
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
-/* The gradebook column heading: the numbers you file the work under, then the
-   name. Kept as separate fields in the app so the numbering stays editable and
-   the title stays readable — they are only joined for the sheet. */
+/* The gradebook column heading: the name number, the name, then the item
+   number. Kept as separate fields in the app so the numbering stays editable
+   and the title stays readable — they are only joined for the sheet. A title
+   that is just the code (what a blank name falls back to) isn't repeated. */
 function sheetTitle(it){
-  return [String(it.seq==null?'':it.seq).trim(),
-          String(it.code||'').trim(),
-          String(it.title||'').trim()].filter(Boolean).join(' · ');
+  const c=String(it.code||'').trim(), t=String(it.title||'').trim();
+  return [c, t===c?'':t, String(it.seq==null?'':it.seq).trim()].filter(Boolean).join(' · ');
 }
 function nextSeq(s){
   const used=hws(s).map(h=>Number(h.seq)).filter(n=>n>0);
   return used.length?Math.max.apply(null,used)+1:1;
 }
 function createHw(stack){
-  const s=sec(),t=($('ttl').value||'HW').trim(),d=$('dte').value||today();
+  const s=sec(),d=$('dte').value||today();
   const sq=($('sseq').value||'').trim(), cd=($('scode').value||'').trim();
+  // left blank, the assignment goes by its number — sheetTitle drops the repeat
+  const t=($('ttl').value||'').trim()||cd||'HW';
   const it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack,
     seq:sq===''?null:Number(sq),code:cd};
   fillAbsences(s,it);
@@ -660,7 +668,7 @@ function fillAbsences(s,it){
 /* ============ attendance ============ */
 VIEWS.attendance=function(){
   const s=sec(),it=item();
-  const cells=act(s).slice().sort(byName).map(st=>{
+  const cells=downColumns(act(s).slice().sort(byName)).map(st=>{
     const c=it.attendance[st.id]||'P';
     const cls=c==='P'?'':(ABSENT.includes(c)?'gone':'ex');
     return `<button class="att ${cls}" onclick="pickAtt('${st.id}')">
@@ -839,13 +847,14 @@ function pickAny(id){
 function editSheet(){
   const it=item();
   panel(`<div class="eyebrow">Edit assignment</div><div style="height:9px"></div>
+    <div class="grid2">
+      <input type="text" id="rcode" value="${esc(it.code||'')}" placeholder="e.g. 00.E.1" autocomplete="off">
+      <input type="number" inputmode="numeric" id="rseq" value="${it.seq==null?'':it.seq}" placeholder="Item #" autocomplete="off">
+    </div>
+    <div style="height:9px"></div>
     <input type="text" id="ren" value="${esc(it.title)}" autocomplete="off">
     <div style="height:9px"></div>
     <input type="date" id="rdt" value="${esc(it.date)}">
-    <div class="grid2" style="margin-top:9px">
-      <input type="number" inputmode="numeric" id="rseq" value="${it.seq==null?'':it.seq}" placeholder="Seq #" autocomplete="off">
-      <input type="text" id="rcode" value="${esc(it.code||'')}" placeholder="e.g. 00.A.1" autocomplete="off">
-    </div>
     <button class="btn" onclick="doRename()">Save</button>
     <button class="btn ghost sm" onclick="clearScores()">Clear every score and regrade</button>
     <button class="btn ghost sm danger" onclick="dropItemNow()">Delete this assignment</button>
@@ -1615,7 +1624,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-02 · 43';
+const BUILD='2026-09-10 · 45';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
