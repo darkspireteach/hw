@@ -770,10 +770,38 @@ function gradeRow(s,it,id){
       </div></div>`:''}
   </div>`;
 }
+/* What a mark means once an original is already on the record. A status says
+   the original was wrong, so it replaces it. A result records what was actually
+   turned in: it fills the original if nothing was ever recorded, otherwise it
+   lands as a regrade beside it, unsent, which is what the sheet highlights.
+   Returns null for the dash — no mark at all. */
+function recordMark(prev,k){
+  if(k==='--')return null;
+  const v=Object.assign({},prev||{});
+  if(k==='MU'||k==='AB'||k==='EX'){
+    delete v.val;delete v.rev;delete v.sent;delete v.missed;delete v.auto;
+    v.code=k;v.touched=true;return v;
+  }
+  if(fillsOriginal(v)){
+    delete v.missed;delete v.code;delete v.val;delete v.auto;
+    if(/^[0-9]$/.test(k))v.val=+k;else v.code=k;
+    v.touched=true;return v;
+  }
+  v.rev=/^[0-9]$/.test(k)?+k:k;v.sent=false;return v;
+}
+/* While an assignment is still open you are entering the original, so a tap
+   corrects the mark in place — changing your mind about a 5 shouldn't leave a
+   regrade behind. Once it's closed the original is the record, and a new mark
+   goes in beside it instead of over it. */
 function setMark(id,k){
   const it=item();
-  if(k==='--')delete it.scores[id];
-  else it.scores[id]=/^[0-9]$/.test(k)?{val:+k,touched:true}:{code:k,touched:true};
+  if(!it.closed){
+    if(k==='--')delete it.scores[id];
+    else it.scores[id]=/^[0-9]$/.test(k)?{val:+k,touched:true}:{code:k,touched:true};
+  }else{
+    const v=recordMark(it.scores[id],k);
+    if(v)it.scores[id]=v;else delete it.scores[id];
+  }
   it.synced=false;save();render();
 }
 function firstTodo(){
@@ -787,10 +815,15 @@ function firstTodo(){
 VIEWS.review=function(){
   const s=sec(),it=item();
   const cell=id=>{
-    const st=stu(s,id),v=it.scores[id]||{},k=markOf(v)||'--';
+    const st=stu(s,id),v=it.scores[id]||{},was=markOf(v)||'--';
+    // a regrade is the true mark now, so it's what the cell shows — with the
+    // original underneath, since that's still what the sheet's first column holds
+    const k=v.rev!=null?String(v.rev):was;
+    const note=v.rev!=null?`<span class="meta">was ${esc(show(was))}</span>`
+      :(v.auto?'<span class="meta">auto</span>':'');
     return `<button class="rv ${['good','bad','info','ex'].includes(toneOf(k))?toneOf(k):'none'}"
       onclick="pickAny('${id}')"><span class="mk">${esc(show(k))}</span>
-      <span class="who">${esc(label(st))}</span>${v.auto?'<span class="meta">auto</span>':''}</button>`;
+      <span class="who">${esc(label(st))}</span>${note}</button>`;
   };
   let cells;
   if(V.az){
@@ -1050,18 +1083,10 @@ function panelScroll(y){
   return box.scrollTop||0;
 }
 function catchUpMark(id,hid,k){
-  const s=sec(),h=s.items.find(x=>x.id===hid),v=Object.assign({},h.scores[id]||{});
-  if(k==='MU'||k==='AB'){
-    delete v.val;delete v.rev;delete v.sent;delete v.missed;delete v.auto;
-    v.code=k;v.touched=true;
-  }else if(fillsOriginal(v)){
-    delete v.missed;delete v.code;delete v.val;delete v.auto;
-    if(/^[0-9]$/.test(k))v.val=+k;else v.code=k;
-    v.touched=true;
-  }else{
-    v.rev=/^[0-9]$/.test(k)?+k:k;v.sent=false;
-  }
-  h.scores[id]=v;h.synced=false;save();
+  const s=sec(),h=s.items.find(x=>x.id===hid);
+  const v=recordMark(h.scores[id],k);
+  if(v)h.scores[id]=v;else delete h.scores[id];
+  h.synced=false;save();
   const keep=panelScroll();
   catchUp(id);
   panelScroll(keep);
@@ -1671,7 +1696,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 46';
+const BUILD='2026-09-10 · 47';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
