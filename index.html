@@ -687,7 +687,7 @@ function fillAbsences(s,it){
 /* ============ attendance ============ */
 VIEWS.attendance=function(){
   const s=sec(),it=item();
-  const cells=downColumns(act(s).slice().sort(byName)).map(st=>{
+  const cells=downColumns(act(s).slice().sort(byFirst)).map(st=>{
     const c=it.attendance[st.id]||'P';
     const cls=c==='P'?'':(ABSENT.includes(c)?'gone':'ex');
     return `<button class="att ${cls}" onclick="pickAtt('${st.id}')">
@@ -723,6 +723,16 @@ function downColumns(list,cols){
 const sortKey=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const byName=(a,b)=>{
   const x=sortKey(a.last)+' '+sortKey(a.first), y=sortKey(b.last)+' '+sortKey(b.first);
+  return x<y?-1:x>y?1:0;
+};
+/* The lists you read in the app go by the given name, because that's the name
+   they now show and a list you scan has to be ordered by what you're reading —
+   on the goes-by name, not the formal one, for the same reason. The sheet rows
+   and the seating fill still use byName: those sit beside Aspen, which files by
+   last name. */
+const byFirst=(a,b)=>{
+  const k=st=>sortKey(st.pref||st.first)+' '+sortKey(st.last);
+  const x=k(a), y=k(b);
   return x<y?-1:x>y?1:0;
 };
 function pickAtt(id){
@@ -843,7 +853,7 @@ VIEWS.review=function(){
   };
   let cells;
   if(V.az){
-    cells=`<div class="grid2">${downColumns(act(s).slice().sort(byName)).map(x=>cell(x.id)).join('')}</div>`;
+    cells=`<div class="grid2">${downColumns(act(s).slice().sort(byFirst)).map(x=>cell(x.id)).join('')}</div>`;
   }else{
     // grouped by table, so what's on screen matches how you walked the room
     cells=[3,4,5,2,1,0].map(t=>{
@@ -1048,7 +1058,7 @@ VIEWS.bywork=function(){
 VIEWS.lateone=function(){
   const s=sec(),h=item();
   const who=owedIndex(s)[h.id]||[];
-  const rows=who.slice().sort(byName).map(st=>{
+  const rows=who.slice().sort(byFirst).map(st=>{
     const v=h.scores[st.id]||{},k=markOf(v)||'--';
     const orig=fillsOriginal(v);
     return `<div class="student"><div class="row"><div class="grow">
@@ -1130,7 +1140,7 @@ function catchUp(id){
 /* ============ student records ============ */
 VIEWS.people=function(){
   const s=sec();
-  const rows=s.students.slice().sort(byName).map(st=>{
+  const rows=s.students.slice().sort(byFirst).map(st=>{
     const n=openList(s,st.id).length;
     return `<button class="rv ${n?'none':''}" style="margin-bottom:6px" onclick="V.hid='${st.id}';go('history')">
       <span class="who" style="${st.out?'color:var(--muted)':''}">${esc(label(st))}</span>
@@ -1192,7 +1202,7 @@ VIEWS.seats=function(){
     `<p class="sub">Laid out as you see the room. Arrange it in the sheet, then pull it in here.</p>
      <div class="grid2" style="gap:7px;grid-template-columns:1fr 1fr 1fr">${grid}</div>`+
     (u.length?`<div class="warnbox" style="margin-top:12px"><div class="meta" style="color:var(--attention)">
-      ${u.length} not seated: ${u.slice().sort(byName).map(x=>esc(label(x))).join(', ')}</div></div>`:'');
+      ${u.length} not seated: ${u.slice().sort(byFirst).map(x=>esc(label(x))).join(', ')}</div></div>`:'');
   bar(`<button class="btn" onclick="pullSeats()">Pull from the sheet</button>
        <div class="grid2">
          <button class="btn ghost sm" onclick="autoSeat()">Fill empty A–Z</button>
@@ -1204,7 +1214,7 @@ function pickSeat(t,k){
   panel(`<div class="eyebrow">Table ${t+1}, seat ${k+1}</div>
     ${cur?`<button class="btn ghost sm danger" style="text-align:left;padding-left:15px"
       onclick="setSeat(${t},${k},'')">Empty this seat</button>`:''}
-    ${unseated(s).slice().sort(byName).map(st=>`<button class="btn ghost sm"
+    ${unseated(s).slice().sort(byFirst).map(st=>`<button class="btn ghost sm"
       style="text-align:left;padding-left:15px" onclick="setSeat(${t},${k},'${st.id}')">${esc(label(st))}</button>`).join('')
       ||'<div class="meta" style="padding:10px 4px">Everyone is seated.</div>'}`);
 }
@@ -1319,9 +1329,9 @@ VIEWS.roster=function(){
       onclick="${arch?`unarchive('${st.id}')`:`archive('${st.id}')`}">${arch?'Restore':'Remove'}</button></div>`;
   $('app').innerHTML=head('Roster',esc(s.name),"go('section')",'Class')+
     `<p class="sub">${act(s).length} enrolled. Removing keeps every score they already have.</p>
-     ${act(s).slice().sort(byName).map(st=>row(st,false)).join('')}
+     ${act(s).slice().sort(byFirst).map(st=>row(st,false)).join('')}
      ${left.length?`<p class="sub" style="margin-top:20px">No longer in this class</p>
-       ${left.slice().sort(byName).map(st=>row(st,true)).join('')}`:''}
+       ${left.slice().sort(byFirst).map(st=>row(st,true)).join('')}`:''}
      <p class="sub" style="margin-top:20px">Add a student</p>
      <div class="grid2" style="gap:7px">
        <input type="text" id="nlast" placeholder="Last name" autocomplete="off">
@@ -1713,7 +1723,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 51';
+const BUILD='2026-09-10 · 52';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
