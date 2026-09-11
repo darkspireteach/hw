@@ -336,16 +336,19 @@ const item=()=>{const s=sec();return s&&s.items.find(x=>x.id===V.iid)};
 const stu=(s,id)=>s.students.find(x=>x.id===id);
 const act=s=>s.students.filter(st=>!st.out);
 const gone=s=>s.students.filter(st=>st.out);
-/* What you see in the app while grading: what they actually go by. The Grades
-   and Attend tabs still carry the formal name — those are the record, and the
-   app sends last/first straight from the roster for them. */
+/* What you see in the app while grading: what they actually go by, given name
+   first. Every list is still ordered by last name — the reading order and the
+   sort order are deliberately different, so a list reads the way you'd say the
+   name out loud while still filing where you'd look for it. The Grades and
+   Attend tabs still carry the formal name — those are the record, and the app
+   sends last/first straight from the roster for them. */
 const label=st=>{
   if(!st)return '';
   const given=(st.pref||st.first||'').trim();
-  return `${st.last}${given?', '+given:''}`;
+  return `${given?given+' ':''}${st.last}`;
 };
 /* the formal name, for anywhere that has to be the official record */
-const formal=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
+const formal=st=>st?`${st.first?st.first+' ':''}${st.last}`:'';
 /* the seating chart always uses what they go by: "Alex B." */
 /* A cubby number, once given, is that student's for the year — a withdrawal
    never renumbers anyone else. The vacated number does become available again,
@@ -555,14 +558,13 @@ VIEWS.section=function(){
     // always shown, not only when there's something pending — closing an
     // assignment syncs automatically, so a "only if needed" button would
     // essentially never appear and you'd have no manual way to reach it
-    // half width and deliberately tall — the labels wrap to two or three lines
-    // and the extra height is the point, not a side effect
-    `<div class="grid2" style="margin-top:9px;grid-auto-rows:minmax(72px,auto)">
-       <button class="btn ghost sm" style="margin-top:0${un?'':';color:var(--muted)'}"
-         onclick="syncSection('${s.id}',false)">${un?`Send ${un} to the sheet`:'Everything is in the sheet'}</button>
-       <button class="btn ghost sm" style="margin-top:0${pend?'':';color:var(--muted)'}"
-         onclick="markSentFor('${s.id}')">${pend?`Clear ${pend} regrade highlight${pend===1?'':'s'}`
-           :'No regrades waiting on Schoology'}</button>
+    `<div class="grid2" style="margin-top:32px">
+       <button class="card tap" onclick="syncSection('${s.id}',false)" style="margin:0">
+         <div class="name">Send to sheet</div>
+         <div class="meta">${un?`${un} waiting`:'everything is in the sheet'}</div></button>
+       <button class="card tap" onclick="markSentFor('${s.id}')" style="margin:0">
+         <div class="name">Regrade highlights</div>
+         <div class="meta">${pend?`clear ${pend}`:'none waiting on Schoology'}</div></button>
      </div>`;
   bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
         ${sess?'Attendance — edit':'Take attendance'}</button>
@@ -863,8 +865,8 @@ VIEWS.review=function(){
        ${un} unchecked. They stay blank and show up in Late work — no score is invented.</div></div>`:''}
      <div class="tally" style="margin:14px 0 0">${tally}
        <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">${V.az?'A–Z':'by table'} ⇅</span>
-       <span onclick="editSheet()" style="cursor:pointer">edit ✎</span></div>
-     <button class="btn ghost sm" style="margin-top:11px" onclick="clearScores()">Clear every score and regrade</button>`;
+       <span onclick="editSheet()" style="cursor:pointer">edit ✎</span>
+       <span onclick="clearScores()" style="cursor:pointer">clear ⌫</span></div>`;
   bar(it.closed
     ? `<button class="btn ghost" onclick="${V.list?"V.list=false;go('bywork')":"go('section')"}">Done</button>`
     : (un?`<button class="btn ghost sm" onclick="fillSheet()">Fill the other ${un} with…</button>`:'')+
@@ -1711,7 +1713,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 49';
+const BUILD='2026-09-10 · 51';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
