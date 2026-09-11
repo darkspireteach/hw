@@ -555,12 +555,15 @@ VIEWS.section=function(){
     // always shown, not only when there's something pending — closing an
     // assignment syncs automatically, so a "only if needed" button would
     // essentially never appear and you'd have no manual way to reach it
-    `<button class="btn ghost sm" style="margin-top:9px${un?'':';color:var(--muted)'}"
-       onclick="syncSection('${s.id}',false)">${un?`Send ${un} to the sheet`:'Everything is in the sheet'}</button>
-     <button class="btn ghost sm" style="margin-top:9px${pend?'':';color:var(--muted)'}"
-       onclick="markSentFor('${s.id}')">${pend?`Clear ${pend} regrade highlight${pend===1?'':'s'}`
-         :'No regrades waiting on Schoology'}</button>
-     <button class="btn ghost sm" style="margin-top:9px" onclick="pullTitles()">Read headings from the sheet</button>`;
+    // half width and deliberately tall — the labels wrap to two or three lines
+    // and the extra height is the point, not a side effect
+    `<div class="grid2" style="margin-top:9px;grid-auto-rows:minmax(72px,auto)">
+       <button class="btn ghost sm" style="margin-top:0${un?'':';color:var(--muted)'}"
+         onclick="syncSection('${s.id}',false)">${un?`Send ${un} to the sheet`:'Everything is in the sheet'}</button>
+       <button class="btn ghost sm" style="margin-top:0${pend?'':';color:var(--muted)'}"
+         onclick="markSentFor('${s.id}')">${pend?`Clear ${pend} regrade highlight${pend===1?'':'s'}`
+           :'No regrades waiting on Schoology'}</button>
+     </div>`;
   bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
         ${sess?'Attendance — edit':'Take attendance'}</button>
       <button class="btn ghost" onclick="newHwSheet()">Grade an assignment</button>`);
@@ -594,6 +597,9 @@ function openHwItem(id){
 /* The same homework usually goes to more than one section, so offer what the
    other classes have used lately. Only names this class hasn't used itself —
    an assignment already here doesn't need suggesting. */
+/* The same worksheet given to another class, so its numbers come along with
+   its name — it's the same assignment, and it should file under the same
+   00.E.1 and the same item number in every gradebook. */
 function recentTitles(s){
   const mine={};hws(s).forEach(h=>{mine[h.title.trim().toLowerCase()]=true});
   const seen={},out=[];
@@ -602,16 +608,24 @@ function recentTitles(s){
     hws(o).slice().reverse().forEach(h=>{
       const t=(h.title||'').trim(),k=t.toLowerCase();
       if(!t||mine[k]||seen[k])return;
-      seen[k]=true;out.push({title:t,from:o.name,date:h.date});
+      seen[k]=true;out.push({title:t,from:o.name,date:h.date,code:h.code||'',seq:h.seq});
     });
   });
   return out.sort((a,b)=>a.date<b.date?1:-1).slice(0,6);
 }
-function useTitle(t){$('ttl').value=t}
+/* Passed by position rather than by value: the titles are yours to type and
+   would otherwise have to survive being quoted into an onclick attribute. */
+let RECENT=[];
+function useTitle(i){
+  const r=RECENT[i];if(!r)return;
+  $('ttl').value=r.title;
+  if(r.code)$('scode').value=r.code;
+  if(r.seq!=null&&r.seq!=='')$('sseq').value=r.seq;
+}
 
 function newHwSheet(){
   const s=sec();
-  const recent=recentTitles(s);
+  const recent=RECENT=recentTitles(s);
   panel(`<div class="eyebrow">${esc(s.name)}</div>
     <h1 style="margin:6px 0 12px">New assignment</h1>
     <div class="grid2">
@@ -621,10 +635,10 @@ function newHwSheet(){
     <div style="height:9px"></div>
     <input type="text" id="ttl" value="" placeholder="Name (optional)" autocomplete="off">
     <div class="meta" style="margin-top:5px">The gradebook column reads 00.E.1 · name · item.</div>
-    ${recent.length?`<div class="tally" style="margin:8px 0 0">${recent.map(r=>
-      `<span onclick="useTitle('${esc(r.title).replace(/'/g,"\\'")}')" style="cursor:pointer"
-        title="${esc(r.from)}">${esc(r.title)}</span>`).join('')}</div>
-      <div class="meta" style="margin-top:5px">Recently used in your other classes — tap to reuse.</div>`:''}
+    ${recent.length?`<div class="tally" style="margin:8px 0 0">${recent.map((r,i)=>
+      `<span onclick="useTitle(${i})" style="cursor:pointer"
+        title="${esc(r.from)}">${esc(r.title)}${r.code?` · ${esc(r.code)}`:''}</span>`).join('')}</div>
+      <div class="meta" style="margin-top:5px">Recently used in your other classes — tap to reuse the name and its numbers.</div>`:''}
     <div style="height:9px"></div>
     <input type="date" id="dte" value="${today()}">
     <div class="meta" style="margin-top:8px">Absences from that day fill in as AB automatically.</div>
@@ -849,7 +863,8 @@ VIEWS.review=function(){
        ${un} unchecked. They stay blank and show up in Late work — no score is invented.</div></div>`:''}
      <div class="tally" style="margin:14px 0 0">${tally}
        <span onclick="V.az=!V.az;render()" style="cursor:pointer;${V.az?'color:var(--ink);border-color:var(--ink)':''}">${V.az?'A–Z':'by table'} ⇅</span>
-       <span onclick="editSheet()" style="cursor:pointer">edit ✎</span></div>`;
+       <span onclick="editSheet()" style="cursor:pointer">edit ✎</span></div>
+     <button class="btn ghost sm" style="margin-top:11px" onclick="clearScores()">Clear every score and regrade</button>`;
   bar(it.closed
     ? `<button class="btn ghost" onclick="${V.list?"V.list=false;go('bywork')":"go('section')"}">Done</button>`
     : (un?`<button class="btn ghost sm" onclick="fillSheet()">Fill the other ${un} with…</button>`:'')+
@@ -892,7 +907,6 @@ function editSheet(){
     <div style="height:9px"></div>
     <input type="date" id="rdt" value="${esc(it.date)}">
     <button class="btn" onclick="doRename()">Save</button>
-    <button class="btn ghost sm" onclick="clearScores()">Clear every score and regrade</button>
     <button class="btn ghost sm danger" onclick="dropItemNow()">Delete this assignment</button>
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
@@ -1009,7 +1023,8 @@ VIEWS.records=function(){
      <button class="card tap" onclick="go('people')"><div class="name">By student</div>
        <div class="meta">${act(s).length} enrolled · one student's whole history</div></button>
      <button class="card tap" onclick="go('bywork')"><div class="name">By assignment</div>
-       <div class="meta">${closedHws(s).length} closed · the whole class at once</div></button>`;
+       <div class="meta">${closedHws(s).length} closed · the whole class at once</div></button>
+     <button class="btn ghost sm" style="margin-top:9px" onclick="pullTitles()">Read headings from the sheet</button>`;
   bar('');
 };
 
@@ -1696,7 +1711,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 47';
+const BUILD='2026-09-10 · 49';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
