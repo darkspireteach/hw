@@ -49,6 +49,12 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
 .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .name{font-size:17px;font-weight:600;letter-spacing:-.2px;line-height:1.25}
 .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em}
+/* a live count on a card: the label says what the button does, the number says
+   how much is waiting, and it goes quiet at zero so only a real backlog pulls
+   the eye */
+.count{font-family:var(--mono);font-size:23px;font-weight:700;line-height:1;flex:none;
+  color:var(--attention)}
+.count.zero{color:var(--muted);font-weight:500}
 
 .btn{display:block;width:100%;background:var(--confirm);color:#0C1A1E;font-weight:650;padding:16px;
   border-radius:13px;text-align:center;font-size:17px;margin-top:7px}
@@ -347,8 +353,10 @@ const label=st=>{
   const given=(st.pref||st.first||'').trim();
   return `${given?given+' ':''}${st.last}`;
 };
-/* the formal name, for anywhere that has to be the official record */
-const formal=st=>st?`${st.first?st.first+' ':''}${st.last}`:'';
+/* The formal name, last name first — the roster screen is the only thing that
+   uses it, and it's the one list read against Aspen rather than against the
+   room, so it matches Aspen's order and Aspen's shape. */
+const formal=st=>st?`${st.last}${st.first?', '+st.first:''}`:'';
 /* the seating chart always uses what they go by: "Alex B." */
 /* A cubby number, once given, is that student's for the year — a withdrawal
    never renumbers anyone else. The vacated number does become available again,
@@ -560,11 +568,13 @@ VIEWS.section=function(){
     // essentially never appear and you'd have no manual way to reach it
     `<div class="grid2" style="margin-top:32px">
        <button class="card tap" onclick="syncSection('${s.id}',false)" style="margin:0">
-         <div class="name">Send to sheet</div>
-         <div class="meta">${un?`${un} waiting`:'everything is in the sheet'}</div></button>
+         <div class="row"><div class="name grow">Send to sheet</div>
+           <span class="count${un?'':' zero'}">${un}</span></div>
+         <div class="meta">send new marks to the sheet</div></button>
        <button class="card tap" onclick="markSentFor('${s.id}')" style="margin:0">
-         <div class="name">Regrade highlights</div>
-         <div class="meta">${pend?`clear ${pend}`:'none waiting on Schoology'}</div></button>
+         <div class="row"><div class="name grow">Clear highlights</div>
+           <span class="count${pend?'':' zero'}">${pend}</span></div>
+         <div class="meta">clear the regrade highlights</div></button>
      </div>`;
   bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
         ${sess?'Attendance — edit':'Take attendance'}</button>
@@ -729,7 +739,8 @@ const byName=(a,b)=>{
    they now show and a list you scan has to be ordered by what you're reading —
    on the goes-by name, not the formal one, for the same reason. The sheet rows
    and the seating fill still use byName: those sit beside Aspen, which files by
-   last name. */
+   last name — and so does the roster screen, which is the one list you read
+   against Aspen rather than against the room. */
 const byFirst=(a,b)=>{
   const k=st=>sortKey(st.pref||st.first)+' '+sortKey(st.last);
   const x=k(a), y=k(b);
@@ -841,12 +852,12 @@ function firstTodo(){
 VIEWS.review=function(){
   const s=sec(),it=item();
   const cell=id=>{
-    const st=stu(s,id),v=it.scores[id]||{},was=markOf(v)||'--';
-    // a regrade is the true mark now, so it's what the cell shows — with the
-    // original underneath, since that's still what the sheet's first column holds
-    const k=v.rev!=null?String(v.rev):was;
-    const note=v.rev!=null?`<span class="meta">was ${esc(show(was))}</span>`
-      :(v.auto?'<span class="meta">auto</span>':'');
+    const st=stu(s,id),v=it.scores[id]||{};
+    // a regrade is the true mark now, so it's what the cell shows. The original
+    // it replaced isn't shown here — the sheet still carries it, and the
+    // by-student view spells it out.
+    const k=v.rev!=null?String(v.rev):(markOf(v)||'--');
+    const note=v.rev==null&&v.auto?'<span class="meta">auto</span>':'';
     return `<button class="rv ${['good','bad','info','ex'].includes(toneOf(k))?toneOf(k):'none'}"
       onclick="pickAny('${id}')"><span class="mk">${esc(show(k))}</span>
       <span class="who">${esc(label(st))}</span>${note}</button>`;
@@ -1329,9 +1340,9 @@ VIEWS.roster=function(){
       onclick="${arch?`unarchive('${st.id}')`:`archive('${st.id}')`}">${arch?'Restore':'Remove'}</button></div>`;
   $('app').innerHTML=head('Roster',esc(s.name),"go('section')",'Class')+
     `<p class="sub">${act(s).length} enrolled. Removing keeps every score they already have.</p>
-     ${act(s).slice().sort(byFirst).map(st=>row(st,false)).join('')}
+     ${act(s).slice().sort(byName).map(st=>row(st,false)).join('')}
      ${left.length?`<p class="sub" style="margin-top:20px">No longer in this class</p>
-       ${left.slice().sort(byFirst).map(st=>row(st,true)).join('')}`:''}
+       ${left.slice().sort(byName).map(st=>row(st,true)).join('')}`:''}
      <p class="sub" style="margin-top:20px">Add a student</p>
      <div class="grid2" style="gap:7px">
        <input type="text" id="nlast" placeholder="Last name" autocomplete="off">
@@ -1723,7 +1734,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 52';
+const BUILD='2026-09-10 · 57';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
