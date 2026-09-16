@@ -131,6 +131,8 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .rv .meta{flex:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rv:active{background:var(--raised)}
 .rv .who{flex:1 1 0;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* a row that shows a whole assignment name instead of clipping it */
+.rv.wide .who{overflow:visible;text-overflow:clip;white-space:normal;line-height:1.3}
 .rv .mk{font-family:var(--mono);font-size:15px;font-weight:700;width:32px;text-align:center;flex:none}
 .rv.good .mk{color:var(--confirm)} .rv.bad .mk{color:var(--flag)}
 .rv.info .mk{color:var(--info)} .rv.none{border-color:var(--attention)} .rv.none .mk{color:var(--attention)}
@@ -142,6 +144,8 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .tally span{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--muted);
   border:1px solid var(--edge);border-radius:8px;padding:5px 9px}
 .tally span.warn{color:var(--attention);border-color:var(--attention)}
+/* a chip stays on one line and loses its tail rather than growing a second */
+.tally span.one{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .warnbox{background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.45);border-radius:12px;padding:12px;margin-bottom:11px}
 .okbox{border:1px solid var(--confirm);border-radius:12px;padding:12px;margin-bottom:11px}
 .empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:15px}
@@ -609,14 +613,20 @@ function openHwItem(id){
 /* The same homework usually goes to more than one section, so offer what the
    other classes have used lately. Only names this class hasn't used itself —
    an assignment already here doesn't need suggesting. */
-/* The same worksheet given to another class, so its numbers come along with
-   its name — it's the same assignment, and it should file under the same
-   00.E.1 and the same item number in every gradebook. */
+/* Which classes run the same course: everything after the period in the class
+   name. "P1 - APP1" and "P5 - APP1" match; "P2 - Phys1" and "P4 - Phys1" match;
+   the two lab sections don't, because their semester is part of the name. A
+   class named some other way matches only a class named exactly the same. */
+const course=s=>String(s.name||'')
+  .replace(/^\s*p\s*\d+\s*[-–—:]\s*/i,'').replace(/\s+/g,' ').trim().toLowerCase();
+/* The same worksheet given to the other section of the same course, so its
+   numbers come along with its name — it's the same assignment, and it should
+   file under the same 00.E.1 and the same item number in both gradebooks. */
 function recentTitles(s){
   const mine={};hws(s).forEach(h=>{mine[h.title.trim().toLowerCase()]=true});
-  const seen={},out=[];
+  const seen={},out=[],here=course(s);
   S.sections.forEach(o=>{
-    if(o.id===s.id)return;
+    if(o.id===s.id||course(o)!==here)return;
     hws(o).slice().reverse().forEach(h=>{
       const t=(h.title||'').trim(),k=t.toLowerCase();
       if(!t||mine[k]||seen[k])return;
@@ -645,12 +655,13 @@ function newHwSheet(){
       <input type="number" inputmode="numeric" id="sseq" value="${nextSeq(s)}" placeholder="Item #" autocomplete="off">
     </div>
     <div style="height:9px"></div>
-    <input type="text" id="ttl" value="" placeholder="Name (optional)" autocomplete="off">
+    <input type="text" id="ttl" value="" placeholder="Name (optional)" autocomplete="off"
+      autocapitalize="words" spellcheck="false">
     <div class="meta" style="margin-top:5px">The gradebook column reads 00.E.1 · name · item.</div>
     ${recent.length?`<div class="tally" style="margin:8px 0 0">${recent.map((r,i)=>
-      `<span onclick="useTitle(${i})" style="cursor:pointer"
-        title="${esc(r.from)}">${esc(r.title)}${r.code?` · ${esc(r.code)}`:''}</span>`).join('')}</div>
-      <div class="meta" style="margin-top:5px">Recently used in your other classes — tap to reuse the name and its numbers.</div>`:''}
+      `<span class="one" onclick="useTitle(${i})" style="cursor:pointer"
+        title="${esc(r.from)}">${r.code?`${esc(r.code)} · `:''}${esc(r.title)}</span>`).join('')}</div>
+      <div class="meta" style="margin-top:5px">Also given in ${esc([...new Set(recent.map(r=>r.from))].join(', '))} — tap to reuse the name and its numbers.</div>`:''}
     <div style="height:9px"></div>
     <input type="date" id="dte" value="${today()}">
     <div class="meta" style="margin-top:8px">Absences from that day fill in as AB automatically.</div>
@@ -926,7 +937,8 @@ function editSheet(){
       <input type="number" inputmode="numeric" id="rseq" value="${it.seq==null?'':it.seq}" placeholder="Item #" autocomplete="off">
     </div>
     <div style="height:9px"></div>
-    <input type="text" id="ren" value="${esc(it.title)}" autocomplete="off">
+    <input type="text" id="ren" value="${esc(it.title)}" autocomplete="off"
+      autocapitalize="words" spellcheck="false">
     <div style="height:9px"></div>
     <input type="date" id="rdt" value="${esc(it.date)}">
     <button class="btn" onclick="doRename()">Save</button>
@@ -1055,12 +1067,13 @@ VIEWS.bywork=function(){
   const s=sec(),owed=owedIndex(s);
   const rows=hws(s).slice().reverse().map(h=>{
     const who=(owed[h.id]||[]).length, need=needScore(s,h);
-    const note=!h.closed?'unfinished':need?`${need} to score`:who?`${who} not yet 4/5`:'all passing';
-    return `<button class="rv ${!h.closed||need?'none':who?'':'good'}" style="margin-bottom:6px"
+    // the whole name, wrapped rather than clipped — the colour of the row
+    // already carries whether it's finished, so the words don't have to
+    return `<button class="rv wide ${!h.closed||need?'none':who?'':'good'}" style="margin-bottom:6px"
       onclick="V.list=true;openHwItem('${h.id}')">
       <span class="mk">${h.closed?'✓':'…'}</span>
       <span class="who">${esc(h.title)}</span>
-      <span class="meta">${esc(note)} · ${esc(when(h.date))}</span></button>`}).join('');
+      <span class="meta">${esc(when(h.date))}</span></button>`}).join('');
   $('app').innerHTML=head('By assignment',esc(s.name),"go('records')",'Gradebook')+
     (rows?`<p class="sub">Open one to change any score in the class.</p>${rows}`
         :'<div class="empty">No assignments yet.</div>');
@@ -1162,11 +1175,13 @@ VIEWS.people=function(){
 VIEWS.history=function(){
   const s=sec(),id=V.hid,st=stu(s,id);
   const rows=closedHws(s).slice().reverse().map(h=>({h:h})).map(o=>{
-    const v=o.h.scores[id]||{},k=markOf(v)||'--';
+    // a regrade replaces the mark here: it's what the student actually has now,
+    // and the score it replaced is still in the sheet and in the edit panel
+    const v=o.h.scores[id]||{},k=v.rev!=null?String(v.rev):(markOf(v)||'--');
     return `<button class="rv ${['good','bad','info','ex'].includes(toneOf(k))?toneOf(k):'none'}"
       style="margin-bottom:6px" onclick="editHist('${o.h.id}')">
       <span class="mk">${esc(show(k))}</span><span class="who">${esc(o.h.title)}</span>
-      <span class="meta">${v.rev!=null?'→ '+esc(show(String(v.rev)))+' ':''}${esc(when(o.h.date))}${o.h.synced?'':' · unsent'}</span></button>`}).join('');
+      <span class="meta">${esc(when(o.h.date))}${o.h.synced?'':' · unsent'}</span></button>`}).join('');
   const att=sessions(s).filter(x=>x.closed).slice().reverse().slice(0,8)
     .map(x=>`${when(x.date)} ${x.attendance[id]||'P'}`).join(' · ');
   $('app').innerHTML=head(label(st),esc(s.name),"go('people')",'Students')+
@@ -1734,7 +1749,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 57';
+const BUILD='2026-09-10 · 59';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
