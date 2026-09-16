@@ -1302,6 +1302,16 @@ async function pullSeats(){
    blank cell means "not filled in", never "clear this" — to empty a field, use
    edit ✎ in the app. Those two together mean the worst a mistimed pull can do
    is nothing. */
+/* Why a call to the sheet failed. A dropped connection, a script that threw
+   and sent back an error page instead of JSON, and a bug in this file all land
+   in the same catch, and telling them apart is the whole job when it starts
+   happening often. */
+function why(e){
+  const m=(e&&e.message)||String(e||'');
+  if(/load failed|network|fetch|connection|offline/i.test(m))return 'no answer from the network';
+  if(/JSON|Unexpected token|SyntaxError/i.test(m))return 'the script answered with an error page, not data — check the Apps Script deployment is up to date';
+  return m||'no reason given';
+}
 async function pullTitles(){
   const s=sec(),c=S.cfg;
   if(!c.url||!c.token){alert('Connect your sheet first — Settings, Sheet sync.');return}
@@ -1333,7 +1343,7 @@ async function pullTitles(){
         :'Nothing to update — the sheet matches the app.');
     render();
   }catch(e){
-    V.busy=null;V.err='Could not reach the sheet. Nothing was changed.';render();
+    V.busy=null;V.err='Could not reach the sheet — '+why(e)+'. Nothing was changed.';render();
   }
 }
 function autoSeat(){
@@ -1698,8 +1708,10 @@ async function syncSection(id,quiet,full){
       unmatched=(d.unmatched&&d.unmatched.length)||unmatched;
       save();
     }catch(e){
+      // "couldn't reach it" and "reached it and it broke" are different
+      // problems and were reading the same. why() says which.
       V.busy=null;
-      V.err='Could not reach the sheet. Everything is safe on this phone — try again on better wifi.'+
+      V.err='Could not reach the sheet — '+why(e)+'. Everything is safe on this phone.'+
         (sentCount?` (${sentCount} of ${pend.length} had already gone through)`:'');
       save();render();return;
     }
@@ -1749,7 +1761,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 59';
+const BUILD='2026-09-10 · 60';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
