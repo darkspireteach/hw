@@ -1625,6 +1625,24 @@ function saveCfg(){
 }
 async function syncAll(){for(const s of S.sections)if(unsynced(s).length)await syncSection(s.id,true)}
 
+/* Apps Script holds ONE lock for the whole spreadsheet, so two requests at once
+   means the second waits twenty seconds and comes back "busy, try again".
+   Most callers fire and forget — finishing attendance, closing an assignment,
+   clearing highlights — so two overlapping was easy to cause by hand and
+   invisible when it happened. A full resend was worse: it started every class
+   at the same moment and they fought each other for the lock.
+
+   Everything now goes through one queue, so there is never more than a single
+   request in flight. A failure doesn't block what's behind it. */
+let QUEUE=Promise.resolve();
+const pause=ms=>new Promise(r=>setTimeout(r,ms));
+function syncSection(id,quiet,full){
+  const run=()=>syncOne(id,quiet,full);
+  const next=QUEUE.then(run,run);
+  QUEUE=next.catch(()=>{});
+  return next;
+}
+
 /* Apps Script gets killed at 6 minutes. A whole year resent in one request
    would land somewhere around that line, and a timeout mid-write leaves the
    sheet half-rewritten — so a full resend goes over in chunks. Each chunk is
@@ -1632,7 +1650,7 @@ async function syncAll(){for(const s of S.sections)if(unsynced(s).length)await s
    list so the script's cleanup pass still sees the whole picture. */
 const CHUNK=40;
 
-async function syncSection(id,quiet,full){
+async function syncOne(id,quiet,full){
   const s=S.sections.find(x=>x.id===id),c=S.cfg;
   if(!c.url||!c.token){if(quiet)return;go('sync');return}
   const pend=unsynced(s);
@@ -1680,8 +1698,9 @@ async function syncSection(id,quiet,full){
   const batches=[];
   for(let i=0;i<pend.length;i+=CHUNK)batches.push(pend.slice(i,i+CHUNK));
   V.err=V.ok=null;
-  let sentCount=0,matched='',unmatched=0;
+  let sentCount=0,matched='',unmatched=0,tries=0;
 
+  V.sending=true;
   for(let b=0;b<batches.length;b++){
     V.busy=batches.length>1
       ? `Sending ${sentCount+batches[b].length} of ${pend.length}…`
@@ -1695,13 +1714,20 @@ async function syncSection(id,quiet,full){
         body:JSON.stringify(payload)});
       const d=await r.json();
       if(!d.ok){
-        V.busy=null;
+        // "busy" means another request holds the spreadsheet lock — the script
+        // is telling us to wait, not that anything went wrong. Waiting is the
+        // app's job, not yours, so the same batch goes again.
+        if(/busy/i.test(d.error||'')&&tries<3){
+          tries++;b--;await pause(1200*tries);continue;
+        }
+        V.busy=null;V.sending=false;
         // whatever already went through stays marked sent — a retry picks up
         // exactly where this stopped rather than starting over
         V.err=(d.error||'The sheet refused the write.')+
           (sentCount?` (${sentCount} of ${pend.length} had already gone through)`:'');
         save();render();return;
       }
+      tries=0;
       batches[b].forEach(x=>x.synced=true);
       sentCount+=batches[b].length;
       matched=d.matched||matched;
@@ -1710,14 +1736,14 @@ async function syncSection(id,quiet,full){
     }catch(e){
       // "couldn't reach it" and "reached it and it broke" are different
       // problems and were reading the same. why() says which.
-      V.busy=null;
+      V.busy=null;V.sending=false;
       V.err='Could not reach the sheet — '+why(e)+'. Everything is safe on this phone.'+
         (sentCount?` (${sentCount} of ${pend.length} had already gone through)`:'');
       save();render();return;
     }
   }
 
-  V.busy=null;
+  V.busy=null;V.sending=false;
   const keep=V.sid;V.sid=s.id;
   V.ok=`Sent ${sentCount} · ${matched} students`+(unmatched?` · ${unmatched} unmatched`:'');
   save();V.sid=keep;render();
@@ -1761,7 +1787,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-10 · 60';
+const BUILD='2026-09-23 · 61';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
@@ -1870,6 +1896,23 @@ function restoreAll(){
   o.cfg=o.cfg||{};o.sections.forEach(migrate);
   S={sections:o.sections,cfg:o.cfg};V.sid=V.iid=V.hid=null;saveAll();go('home');
 }
+
+/* iOS freezes a home-screen app's JavaScript the moment you switch away, and
+   that kills whatever request was in the air. Nothing is lost — a batch is only
+   marked sent once the sheet has confirmed it, so an interrupted send just
+   leaves the rest unsent — but from the outside it looks like the app quietly
+   gave up halfway. Coming back finishes the job and says so.
+
+   There is no way to stop the freeze; a web app doesn't get to keep running in
+   the background. Resuming is the honest answer to it. */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'||!V.sending)return;
+  V.sending=false;V.busy=null;
+  const left=S.sections.reduce((n,s)=>n+unsynced(s).length,0);
+  if(!left){render();return}
+  V.ok=`Sending stopped when you switched away — picking up the last ${left}.`;
+  render();syncAll();
+});
 
 const resume=sessionStorage.getItem('hw:afterUpdate');
 if(resume){
