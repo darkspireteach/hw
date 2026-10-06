@@ -669,6 +669,10 @@ function newHwSheet(){
     <button class="btn ghost" onclick="createHw(true)">Grade a stack</button>
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
+/* The name-number box stays a plain text field on purpose. iOS gives no way to
+   open the full keyboard on its 123 plane — inputmode can only ask for the
+   number pad outright, and that pad has no ABC key, so the letter in 00.E.1
+   becomes untypeable. Tried in build 62, reverted in 63. */
 /* The heading is three separate cells on the sheet — name number, item number,
    name — so each one can be retyped there and read back without anything
    having to be parsed apart. The name cell holds the name alone; when a blank
@@ -1787,7 +1791,7 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-09-23 · 61';
+const BUILD='2026-10-02 · 63';
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
