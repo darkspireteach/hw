@@ -463,7 +463,7 @@ function bar(html){
 }
 function banner(){
   if(V.busy)return `<div class="warnbox"><div class="meta">${esc(V.busy)}</div></div>`;
-  if(V.err)return `<div class="warnbox" style="border-color:var(--flag)"><div class="meta" style="color:var(--flag)">${esc(V.err)}</div></div>`;
+  if(V.err)return `<div class="warnbox" style="border-color:var(--flag)"><div class="meta" style="color:var(--flag)">${esc(V.err+scriptNote())}</div></div>`;
   if(V.ok)return `<div class="okbox"><div class="meta" style="color:var(--confirm)">${esc(V.ok)}</div></div>`;
   return '';
 }
@@ -525,7 +525,7 @@ VIEWS.menu=function(){
      <button class="card tap" onclick="go('backup')"><div class="name">Backup &amp; restore</div>
        <div class="meta">All classes${stuck?' · '+stuck+' unsent':''}</div></button>
      <button class="card tap" onclick="forceUpdate()"><div class="name">Check for an update</div>
-       <div class="meta">Running build ${esc(BUILD)}</div></button>`;
+       <div class="meta">Running build ${esc(BUILD)}${esc(scriptNote())}</div></button>`;
   bar('');
 };
 
@@ -1001,7 +1001,7 @@ async function dropItemNow(){
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({token:c.token,action:'dropItem',section:s.name,
           id:it.id,kind:it.kind,iso:it.date})});
-      const d=await r.json();
+      const d=heard(await r.json());
       if(!d.ok){V.busy=null;V.err=(d.error||'The sheet refused it')+' — nothing was deleted.';render();return}
     }catch(e){
       V.busy=null;V.err='Could not reach the sheet — nothing was deleted.';render();return;
@@ -1263,7 +1263,7 @@ async function pullSeats(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'seats',section:s.name})});
-    const d=await r.json();
+    const d=heard(await r.json());
     V.busy=null;
     if(!d.ok){V.err=d.error||'Could not read the seating chart.';render();return}
     const key=n=>String(n||'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -1323,7 +1323,7 @@ async function pullTitles(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'titles',section:s.name})});
-    const d=await r.json();
+    const d=heard(await r.json());
     V.busy=null;
     if(!d.ok){V.err=d.error||'Could not read the headings.';render();return}
     const mine={};hws(s).forEach(h=>mine[h.id]=h);
@@ -1499,7 +1499,7 @@ async function wipeAndRebuild(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'wipe',section:s.name})});
-    const d=await r.json();
+    const d=heard(await r.json());
     if(!d.ok){V.busy=null;V.err=d.error||'The script refused the request.';render();return}
     s.items.forEach(x=>{if(x.closed)x.synced=false});
     save();
@@ -1675,7 +1675,7 @@ async function syncOne(id,quiet,full){
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({token:c.token,section:s.name,idx:S.sections.indexOf(s),
           students:roster0,items:[]})});
-      const d=await r.json();
+      const d=heard(await r.json());
       V.busy=null;
       V.ok=d.ok?'Nothing new to send — sheet refreshed.':(d.error||'The sheet refused the request.');
       if(!d.ok)V.err=V.ok,V.ok=null;
@@ -1716,7 +1716,7 @@ async function syncOne(id,quiet,full){
     try{
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify(payload)});
-      const d=await r.json();
+      const d=heard(await r.json());
       if(!d.ok){
         // "busy" means another request holds the spreadsheet lock — the script
         // is telling us to wait, not that anything went wrong. Waiting is the
@@ -1791,7 +1791,25 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-02 · 63';
+const BUILD='2026-10-07 · 64';
+/* The Code.gs this build was written against, and the one the sheet last
+   answered with. Every reply carries its version from hw-64 on; a reply with
+   none is from an older script. Shown beside any error, so a deployment that
+   is out of step names itself. */
+const SCRIPT_WANTED='hw-64';
+var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
+function heard(d){
+  if(d&&typeof d==='object'){
+    script=d.version?String(d.version):'older than hw-64';
+    try{localStorage.setItem('hw:script',script)}catch(e){}
+  }
+  return d;
+}
+function scriptNote(){
+  if(!script)return '';
+  const tag=script.split(' ')[0];
+  return ' · script '+script+(tag===SCRIPT_WANTED?'':' — this build expects '+SCRIPT_WANTED+', so deploy Code.gs');
+}
 /* {cache:'no-store'} makes the browser skip its disk cache and actually ask the
    server — a plain reload or query-string trick can still be answered from a
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
@@ -1830,7 +1848,7 @@ async function autoBackup(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'backup',blob:backupBlob()})});
-    const d=await r.json();
+    const d=heard(await r.json());
     if(d.ok&&d.saved){S.cfg.lastBackup=Date.now();S.cfg.backupName=d.saved;saveAll();
       if(V.view==='home'||V.view==='backup')render()}
     // the script answered but saved nothing — that reason is the useful part
@@ -1882,7 +1900,7 @@ async function pushCubbies(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'cubbies',classes})});
-    const d=await r.json();
+    const d=heard(await r.json());
     V.busy=null;
     if(!d.ok){V.err=d.error||'The script refused the request.';render();return}
     V.ok=`Cubby list built — ${d.classes} class${d.classes===1?'':'es'}, ${d.students} students.`;
