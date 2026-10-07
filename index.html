@@ -188,8 +188,35 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid=()=>Math.random().toString(36).slice(2,9);
 const show=k=>k==='--'?'—':k;
-const nameOf=k=>(ALLX.find(x=>x[0]===k)||[,''])[1]||k;
-const toneOf=k=>(ALLX.find(x=>x[0]===k)||[,,''])[2]||'';
+const isNum=k=>/^\d+(\.\d+)?$/.test(String(k));
+const CODES=[['NC','not complete','bad'],['MU','absent when assigned','info'],['AB','absent today','info']];
+const NAMED=CODES.concat([DASH,EXCUSED]);
+// a number is a score whatever the assignment's scale; its name is its points
+const nameOf=k=>isNum(k)?k+' pts':(NAMED.find(x=>x[0]===k)||[,''])[1]||k;
+const toneOf=k=>isNum(k)?'good':(NAMED.find(x=>x[0]===k)||[,,''])[2]||'';
+/* The numbers an assignment is marked with come from the docs app's pts
+   (Shared-Contracts §9.3): "10/5" or "8/4/2" as written, "10" with a partial
+   at PARTIAL of it, "10 only" for all or nothing, blank for 5/4. Anything else
+   is unreadable and says so on screen while offering 5/4. Up to MAX_LEVELS
+   numbers, each smaller than the one before, so a row of buttons still fits a
+   phone. */
+const PARTIAL=0.8, MAX_LEVELS=3;
+function scaleOf(h){
+  const t=String(h&&h.scale||'').trim();
+  if(!t)return {nums:[5,4]};
+  let m=t.match(/^(\d+)\s*only$/i);
+  if(m)return {nums:[+m[1]]};
+  if(/^\d+$/.test(t)){const n=+t,p=Math.round(n*PARTIAL);return {nums:p>0&&p<n?[n,p]:[n]}}
+  const parts=t.split('/').map(x=>x.trim());
+  // a scale steps down, full then less: "10/5/2026" is a date Sheets made of 10/5
+  if(parts.length<=MAX_LEVELS&&parts.every(x=>/^\d+$/.test(x))&&
+     parts.every((x,i)=>!i||+x<+parts[i-1]))return {nums:parts.map(Number)};
+  return {nums:[5,4],bad:t};
+}
+function marksFor(h){
+  return scaleOf(h).nums.map((n,i)=>[String(n),i?'part credit':'full credit','good']).concat(CODES);
+}
+const stripOf=n=>`style="grid-template-columns:repeat(${n},minmax(0,1fr))"`;
 
 /* Local dates throughout — toISOString() is UTC and rolls a US evening into tomorrow. */
 function today(){const d=new Date();return iso(d.getFullYear(),d.getMonth()+1,d.getDate())}
@@ -426,7 +453,17 @@ function owedIndex(s){
    table row shows a count rather than the whole list; the catch-up panel is
    where it gets worked through. */
 function tableQueue(s,id,exclude){
-  return hws(s).filter(h=>h.closed&&h.id!==exclude&&TABLEQ.includes(effective(h.scores[id])));
+  const since=owedSince();
+  return hws(s).filter(h=>h.closed&&h.id!==exclude&&h.date>=since&&TABLEQ.includes(effective(h.scores[id])));
+}
+/* Walking the room, owed work surfaces only for the last OWED_DAYS school
+   days: Aspen is brought up to date every few days, and anything older is
+   handled there. Late work keeps the rest, folded. Weekends don't count. */
+const OWED_DAYS=3;
+function owedSince(){
+  const d=new Date();let n=0;
+  while(n<OWED_DAYS){d.setDate(d.getDate()-1);const w=d.getDay();if(w>0&&w<6)n++}
+  return iso(d.getFullYear(),d.getMonth()+1,d.getDate());
 }
 function pendingSend(s){
   let n=0;hws(s).forEach(h=>Object.values(h.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent)n++}));
@@ -464,6 +501,7 @@ function bar(html){
 function banner(){
   if(V.busy)return `<div class="warnbox"><div class="meta">${esc(V.busy)}</div></div>`;
   if(V.err)return `<div class="warnbox" style="border-color:var(--flag)"><div class="meta" style="color:var(--flag)">${esc(V.err+scriptNote())}</div></div>`;
+  if(V.warn)return `<div class="warnbox" onclick="V.warn=null;render()"><div class="meta" style="color:var(--attention)">${esc(V.warn)} · tap to dismiss</div></div>`;
   if(V.ok)return `<div class="okbox"><div class="meta" style="color:var(--confirm)">${esc(V.ok)}</div></div>`;
   return '';
 }
@@ -533,7 +571,8 @@ VIEWS.menu=function(){
 VIEWS.section=function(){
   const s=sec(),d=today(),sess=sessionOn(s,d),hw=hwsOn(s,d);
   const live=s.items.filter(x=>!x.closed);
-  const openHw=Object.keys(owedIndex(s)).length;
+  const since=owedSince(),owedNow=owedIndex(s);
+  const openHw=closedHws(s).filter(h=>h.date>=since&&(owedNow[h.id]||[]).length).length;
   const un=unsynced(s).length, pend=pendingSend(s);
   const todayCard=`<div class="card">
     <div class="eyebrow">Today · ${esc(when(d))}</div>
@@ -548,7 +587,14 @@ VIEWS.section=function(){
         <span class="meta">${n?`${n} to score`:h.closed?'done':'in progress'}</span></button>`}).join('')
       :`<div class="meta" style="margin-top:6px">No assignments logged today</div>`}</div>`;
   const others=live.filter(x=>x.date!==d);
-  $('app').innerHTML=head(s.name,'',"go('home')",'Classes')+banner()+todayCard+
+  const unlinked=hws(s).filter(h=>(!h.item&&!h.typed)||h.lost).length;
+  const setup=!s.course?`<div class="card"><div class="eyebrow">Which course is this class?</div>
+      <div class="grid2" style="margin-top:8px">${Object.keys(COURSES).map(k=>
+        `<button class="btn ghost sm" style="margin:0" onclick="sec().course='${k}';save();render()">${COURSES[k]}</button>`).join('')}</div>
+      <div class="meta" style="margin-top:6px">Asked once — it picks which assignments the docs app offers.</div></div>`
+    :unlinked?`<button class="card tap" onclick="go('link')"><div class="name">Link to the docs app</div>
+      <div class="meta">${unlinked} assignment${unlinked===1?'':'s'} typed by hand — match ${unlinked===1?'it':'them'} to the docs app's numbers</div></button>`:'';
+  $('app').innerHTML=head(s.name,'',"go('home')",'Classes')+banner()+setup+todayCard+
     (others.length?`<div class="card"><div class="eyebrow" style="color:var(--attention)">Unfinished</div>
       ${others.map(x=>`<div class="rv none" style="margin-top:7px">
         <span class="mk">…</span>
@@ -582,7 +628,7 @@ VIEWS.section=function(){
      </div>`;
   bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
         ${sess?'Attendance — edit':'Take attendance'}</button>
-      <button class="btn ghost" onclick="newHwSheet()">Grade an assignment</button>`);
+      <button class="btn ghost" onclick="newHwSheet(true)">Grade an assignment</button>`);
 };
 
 function discard(id){
@@ -630,7 +676,7 @@ function recentTitles(s){
     hws(o).slice().reverse().forEach(h=>{
       const t=(h.title||'').trim(),k=t.toLowerCase();
       if(!t||mine[k]||seen[k])return;
-      seen[k]=true;out.push({title:t,from:o.name,date:h.date,code:h.code||'',seq:h.seq});
+      seen[k]=true;out.push({title:t,from:o.name,date:h.date,code:h.code||''});
     });
   });
   return out.sort((a,b)=>a.date<b.date?1:-1).slice(0,6);
@@ -642,31 +688,120 @@ function useTitle(i){
   const r=RECENT[i];if(!r)return;
   $('ttl').value=r.title;
   if(r.code)$('scode').value=r.code;
-  if(r.seq!=null&&r.seq!=='')$('sseq').value=r.seq;
 }
 
-function newHwSheet(){
+/* ============ the docs app's assignment list (Shared-Contracts §9) ============ */
+const COURSES={applied:'Applied Physics',ap:'AP Physics'};
+/* The list per course as last read, kept so a room with no signal can still
+   start an assignment. Re-read whenever the picker opens. */
+let DOCS=(()=>{try{return JSON.parse(localStorage.getItem('hw:docs')||'{}')||{}}catch(e){return {}}})();
+function saveDocs(){try{localStorage.setItem('hw:docs',JSON.stringify(DOCS))}catch(e){}}
+function pickCourse(){
   const s=sec();
-  const recent=RECENT=recentTitles(s);
   panel(`<div class="eyebrow">${esc(s.name)}</div>
-    <h1 style="margin:6px 0 12px">New assignment</h1>
-    <div class="grid2">
-      <input type="text" id="scode" value="" placeholder="e.g. 00.E.1" autocomplete="off">
-      <input type="number" inputmode="numeric" id="sseq" value="${nextSeq(s)}" placeholder="Item #" autocomplete="off">
-    </div>
+    <h1 style="margin:6px 0 12px">Which course is this?</h1>
+    <p class="sub">Asked once. It decides which assignments the docs app offers this class.</p>
+    ${Object.keys(COURSES).map(k=>`<button class="btn ghost" onclick="setCourse('${k}')">${COURSES[k]}</button>`).join('')}
+    <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
+}
+function setCourse(k){const s=sec();s.course=k;save();closeSheet();render();newHwSheet(true)}
+async function readList(course,quiet){
+  const c=S.cfg;
+  if(!c.url||!c.token)return false;
+  try{
+    const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:c.token,action:'assignments',course})});
+    const d=heard(await r.json());
+    if(!d.ok){if(!quiet){V.err=d.error||'The docs list could not be read.';render()}return false}
+    // an older script answers this as an ordinary sync, with a count, not a list
+    if(!Array.isArray(d.items)){V.err='The script behind the sheet is older than '+SCRIPT_WANTED+
+      ' and has no docs list — deploy Code.gs.';render();return false}
+    DOCS[course]={read:d.read||new Date().toISOString(),items:d.items||[]};saveDocs();
+    const notes=applyList(course);
+    if(notes.length){V.warn=notes.join(' · ');render()}
+    return true;
+  }catch(e){if(!quiet){V.err='Could not read the docs list — '+why(e)+'.';render()}return false}
+}
+/* A linked assignment takes its number, name and points from the list every
+   time the list is read: that is what stops the hand copy drifting. A number
+   that moves after the assignment went into the gradebook is said out loud,
+   because Aspen will not follow. */
+function applyList(course){
+  const L=DOCS[course];if(!L)return [];
+  const by={};L.items.forEach(x=>{by[x.item]=x});
+  const notes=[];
+  S.sections.filter(s=>s.course===course).forEach(s=>{hws(s).forEach(h=>{
+    if(!h.item)return;
+    const x=by[h.item];
+    if(!x){
+      if(!h.lost)notes.push(`${s.name}: ${h.code||h.title}'s document was merged or removed in the docs app — link it again`);
+      h.lost=true;return;
+    }
+    delete h.lost;
+    let hit=false;
+    if(x.label!==h.code){
+      if(h.closed&&h.code)notes.push(`${h.code} is now ${x.label} (${s.name}) — change it in Aspen`);
+      h.code=x.label;hit=true;
+    }
+    if(x.name!==h.title){h.title=x.name;hit=true}
+    h.scale=x.pts||'';
+    if(hit&&h.closed)h.synced=false;
+  })});
+  saveAll();
+  return notes;
+}
+const hiddenOf=c=>((S.cfg.hidden||{})[c]||[]);
+function toggleHidden(i){
+  const s=sec(),x=PICK[i];if(!x)return;
+  S.cfg.hidden=S.cfg.hidden||{};
+  const h=hiddenOf(s.course).slice(),at=h.indexOf(x.item);
+  if(at>=0)h.splice(at,1);else h.push(x.item);
+  S.cfg.hidden[s.course]=h;save();newHwSheet();
+}
+let PICK=[];
+function pickItem(i){V.pick=PICK[i]||null;V.typing=false;newHwSheet()}
+function newHwSheet(fresh){
+  const s=sec();
+  if(!s.course)return pickCourse();
+  if(fresh){V.pick=null;V.typing=false;V.more=false;V.showHidden=false;
+    readList(s.course,true).then(ok=>{if(ok&&$('picker'))newHwSheet()})}
+  const L=DOCS[s.course],used={},hid=hiddenOf(s.course);
+  hws(s).forEach(h=>{if(h.item)used[h.item]=true});
+  const open=(L?L.items:[]).filter(x=>!used[x.item]);
+  const first=open.filter(x=>x.assigned&&!hid.includes(x.item));
+  const more=open.filter(x=>!x.assigned&&!hid.includes(x.item));
+  const hidden=open.filter(x=>hid.includes(x.item));
+  PICK=first.concat(more,hidden);
+  const row=x=>{const i=PICK.indexOf(x),on=V.pick&&V.pick.item===x.item;
+    return `<div class="row" style="margin-top:6px"><button class="rv ${on?'good':'none'} grow" style="margin:0"
+      onclick="pickItem(${i})"><span class="mk">${on?'✓':''}</span><span class="who">${esc(x.label)} · ${esc(x.name)}</span></button>
+      <button class="chip quiet" style="width:58px;padding:7px 0;flex:none" onclick="toggleHidden(${i})">${hid.includes(x.item)?'show':'hide'}</button></div>`};
+  const ready=!!V.pick||V.typing;
+  const recent=RECENT=recentTitles(s);
+  panel(`<div id="picker"></div><div class="eyebrow">${esc(s.name)} · ${esc(COURSES[s.course])}
+      <span onclick="pickCourse()" style="cursor:pointer;text-decoration:underline">change</span></div>
+    <h1 style="margin:6px 0 8px">New assignment</h1>
+    <div class="meta">${L?'Docs list read '+esc(when(L.read.slice(0,10)))+' '+esc(L.read.slice(11,16)):'The docs list has not been read yet.'}</div>
+    ${first.map(row).join('')||(L?'<div class="meta" style="margin-top:8px">Nothing assigned in the docs app that this class hasn\'t had.</div>':'')}
+    ${more.length?`<button class="btn ghost sm" style="margin-top:9px" onclick="V.more=!V.more;newHwSheet()">${V.more?'Fewer':'More'} — ${more.length} not marked assigned</button>
+      ${V.more?more.map(row).join(''):''}`:''}
+    ${hidden.length?`<button class="btn ghost sm" onclick="V.showHidden=!V.showHidden;newHwSheet()">Hidden — ${hidden.length} not graded here</button>
+      ${V.showHidden?hidden.map(row).join(''):''}`:''}
+    <button class="btn ghost sm" onclick="V.typing=!V.typing;V.pick=null;newHwSheet()">${V.typing?'Pick from the docs app instead':'Type one instead — no document'}</button>
+    ${V.typing?`<input type="text" id="scode" value="" placeholder="e.g. 00.E.1" autocomplete="off">
     <div style="height:9px"></div>
     <input type="text" id="ttl" value="" placeholder="Name (optional)" autocomplete="off"
       autocapitalize="words" spellcheck="false">
-    <div class="meta" style="margin-top:5px">The gradebook column reads 00.E.1 · name · item.</div>
+    <div class="meta" style="margin-top:5px">The gradebook column reads 00.E.1 · name.</div>
     ${recent.length?`<div class="tally" style="margin:8px 0 0">${recent.map((r,i)=>
       `<span class="one" onclick="useTitle(${i})" style="cursor:pointer"
         title="${esc(r.from)}">${r.code?`${esc(r.code)} · `:''}${esc(r.title)}</span>`).join('')}</div>
-      <div class="meta" style="margin-top:5px">Also given in ${esc([...new Set(recent.map(r=>r.from))].join(', '))} — tap to reuse the name and its numbers.</div>`:''}
-    <div style="height:9px"></div>
+      <div class="meta" style="margin-top:5px">Also given in ${esc([...new Set(recent.map(r=>r.from))].join(', '))} — tap to reuse the name and its number.</div>`:''}`:''}
+    ${ready?`<div style="height:9px"></div>
     <input type="date" id="dte" value="${today()}">
     <div class="meta" style="margin-top:8px">Absences from that day fill in as AB automatically.</div>
     <button class="btn" onclick="createHw(false)">Grade at the tables</button>
-    <button class="btn ghost" onclick="createHw(true)">Grade a stack</button>
+    <button class="btn ghost" onclick="createHw(true)">Grade a stack</button>`:''}
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
 /* The name-number box stays a plain text field on purpose. iOS gives no way to
@@ -682,18 +817,20 @@ function nameOnly(it){
   const c=String(it.code||'').trim(), t=String(it.title||'').trim();
   return t===c?'':t;
 }
-function nextSeq(s){
-  const used=hws(s).map(h=>Number(h.seq)).filter(n=>n>0);
-  return used.length?Math.max.apply(null,used)+1:1;
-}
 function createHw(stack){
-  const s=sec(),d=$('dte').value||today();
-  const sq=($('sseq').value||'').trim(), cd=($('scode').value||'').trim();
-  // left blank, the assignment goes by its number — the sheet's name cell
-  // is left empty rather than repeating it
-  const t=($('ttl').value||'').trim()||cd||'HW';
-  const it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack,
-    seq:sq===''?null:Number(sq),code:cd};
+  const s=sec(),d=$('dte').value||today(),x=V.pick;
+  let it;
+  if(x){
+    it={id:uid(),kind:'hw',item:x.item,title:x.name,code:x.label,scale:x.pts||'',
+      date:d,scores:{},closed:false,synced:false,stack:!!stack};
+  }else{
+    const cd=($('scode').value||'').trim();
+    // left blank, the assignment goes by its number — the sheet's name cell
+    // is left empty rather than repeating it
+    const t=($('ttl').value||'').trim()||cd||'HW';
+    it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack,code:cd};
+  }
+  V.pick=null;V.typing=false;
   fillAbsences(s,it);
   s.items.push(it);V.iid=it.id;V.az=!!stack;V.tab=0;save();
   closeSheet();go(stack?'review':'grade');
@@ -708,6 +845,73 @@ function fillAbsences(s,it){
     else if(v&&v.auto)delete it.scores[st.id];
   });
 }
+
+/* ============ linking typed assignments to the docs app ============ */
+/* Once per class, for assignments made before the docs list existed: each is
+   shown beside its likeliest docs item — the same number first, then the
+   closest name — with both numbers whenever they differ. Nothing links until
+   it is confirmed; one kept as typed is not asked about again. */
+const words=t=>String(t||'').toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>1);
+function likeness(a,b){
+  const x=new Set(words(a)),y=new Set(words(b));
+  if(!x.size||!y.size)return 0;
+  let n=0;x.forEach(w=>{if(y.has(w))n++});
+  return n/(x.size+y.size-n);
+}
+function suggest(h,items){
+  const code=String(h.code||'').trim().toLowerCase();
+  const same=items.find(x=>x.label.toLowerCase()===code);
+  if(same)return same;
+  let best=null,score=0;
+  items.forEach(x=>{const k=likeness(h.title,x.name);if(k>score){score=k;best=x}});
+  return score>=0.5?best:null;
+}
+let LINKS=[];
+VIEWS.link=function(){
+  const s=sec(),L=DOCS[s.course];
+  if(!L){
+    $('app').innerHTML=head('Link to the docs app',esc(s.name),"go('section')",'Class')+banner()+
+      `<p class="sub">The docs list hasn't been read on this phone yet.</p>
+       <button class="btn" onclick="readList(sec().course).then(()=>render())">Read it now</button>`;
+    bar('');return;
+  }
+  const used={};hws(s).forEach(h=>{if(h.item&&!h.lost)used[h.item]=true});
+  const free=L.items.filter(x=>!used[x.item]);
+  const todo=hws(s).filter(h=>(!h.item&&!h.typed)||h.lost);
+  LINKS=todo.map(h=>({h,x:suggest(h,free)}));
+  const rows=LINKS.map((o,i)=>{const h=o.h,x=o.x,differ=x&&x.label!==h.code;
+    return `<div class="student">
+      <div class="name">${esc(h.code||'—')} · ${esc(h.title)}</div>
+      <div class="meta">${esc(when(h.date))}${h.lost?' · its document was merged or removed':''}</div>
+      ${x?`<div class="meta" style="margin-top:4px;${differ?'color:var(--attention)':''}">Docs: ${esc(x.label)} · ${esc(x.name)}${differ?' — the numbers differ':''}</div>`
+        :'<div class="meta" style="margin-top:4px">No likely match in the docs app.</div>'}
+      <div class="row" style="margin-top:6px;gap:6px">
+        ${x?`<button class="chip" style="flex:1" onclick="linkTo(${i},LINKS[${i}].x)">Link</button>`:''}
+        <button class="chip quiet" style="flex:1" onclick="pickFor(${i})">Pick…</button>
+        <button class="chip quiet" style="flex:1" onclick="keepTyped(${i})">Keep typed</button></div>
+    </div>`}).join('');
+  $('app').innerHTML=head('Link to the docs app',esc(s.name),"go('section')",'Class')+banner()+
+    (rows?`<p class="sub">Linking takes the number and name from the docs app, here and in the gradebook.</p>
+      <div class="card">${rows}</div>`:'<div class="empty">Everything here is linked.</div>');
+  bar(`<button class="btn ghost" onclick="go('section')">Done</button>`);
+};
+function linkTo(i,x){
+  const o=LINKS[i];if(!o||!x)return;
+  const h=o.h;
+  h.item=x.item;h.code=x.label;h.title=x.name;h.scale=x.pts||'';delete h.lost;delete h.typed;
+  if(h.closed)h.synced=false;
+  save();closeSheet();render();
+}
+function pickFor(i){
+  const s=sec(),L=DOCS[s.course],used={};
+  hws(s).forEach(h=>{if(h.item&&!h.lost)used[h.item]=true});
+  PICK=L.items.filter(x=>!used[x.item]);
+  panel(`<div class="eyebrow">Link ${esc(LINKS[i].h.title)} to…</div>
+    ${PICK.map((x,j)=>`<button class="rv none" style="margin-top:6px" onclick="linkTo(${i},PICK[${j}])">
+      <span class="who">${esc(x.label)} · ${esc(x.name)}</span></button>`).join('')}
+    <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
+}
+function keepTyped(i){const o=LINKS[i];if(!o)return;o.h.typed=true;delete o.h.lost;save();render()}
 
 /* ============ attendance ============ */
 VIEWS.attendance=function(){
@@ -800,7 +1004,10 @@ VIEWS.grade=function(){
   // Table number as the title, assignment name beneath: while walking the room
   // the table is what you need at a glance, and a long assignment name gets the
   // full width instead of being cut off in the title slot.
+  const sc=scaleOf(it);
   $('app').innerHTML=head(`Table ${i+1}`,it.title,"go('section')",'Class')+
+    (sc.bad?`<div class="warnbox"><div class="meta" style="color:var(--attention)">The docs app's points
+      for this one, "${esc(sc.bad)}", can't be read, so it is marked 5 / 4 — fix them there.</div></div>`:'')+
     `<div class="card">${rows}</div>`;
   bar(`<div class="tabs">${tabs}</div>
       <button class="btn sm" onclick="V.az=false;go('review')">Done grading${left?` — ${left} left`:''}</button>`);
@@ -813,7 +1020,7 @@ function gradeRow(s,it,id){
     <div class="row"><div class="grow"><div class="name trunc">${esc(label(st))}</div>
       <div class="meta">${esc(nameOf(cur))}${v.auto?' · auto':''}</div></div>
       <button class="chip dash ${un?'on warn':'quiet'}" onclick="setMark('${id}','--')">—</button></div>
-    <div class="strip">${MARKS.map(m=>chip(m[0],cur===m[0])).join('')}</div>
+    <div class="strip" ${stripOf(marksFor(it).length)}>${marksFor(it).map(m=>chip(m[0],cur===m[0])).join('')}</div>
     ${q.length?`<div class="warnbox" style="margin:7px 0 0"><div class="row"><div class="grow">
       <div class="meta" style="color:var(--attention)">${q.length===1
         ? (effective(q[0].scores[id])==='--'?'I never checked '+esc(q[0].title):'Owes '+esc(q[0].title))
@@ -836,10 +1043,10 @@ function recordMark(prev,k){
   }
   if(fillsOriginal(v)){
     delete v.missed;delete v.code;delete v.val;delete v.auto;
-    if(/^[0-9]$/.test(k))v.val=+k;else v.code=k;
+    if(isNum(k))v.val=+k;else v.code=k;
     v.touched=true;return v;
   }
-  v.rev=/^[0-9]$/.test(k)?+k:k;v.sent=false;return v;
+  v.rev=isNum(k)?+k:k;v.sent=false;return v;
 }
 /* While an assignment is still open you are entering the original, so a tap
    corrects the mark in place — changing your mind about a 5 shouldn't leave a
@@ -849,7 +1056,7 @@ function setMark(id,k){
   const it=item();
   if(!it.closed){
     if(k==='--')delete it.scores[id];
-    else it.scores[id]=/^[0-9]$/.test(k)?{val:+k,touched:true}:{code:k,touched:true};
+    else it.scores[id]=isNum(k)?{val:+k,touched:true}:{code:k,touched:true};
   }else{
     const v=recordMark(it.scores[id],k);
     if(v)it.scores[id]=v;else delete it.scores[id];
@@ -891,7 +1098,7 @@ VIEWS.review=function(){
   }
   const count={};act(s).forEach(st=>{const k=markOf(it.scores[st.id]||{})||'--';count[k]=(count[k]||0)+1});
   const un=count['--']||0;
-  const tally=['5','4','NC','MU','AB'].filter(k=>count[k]).map(k=>`<span>${k} · ${count[k]}</span>`).join('')+
+  const tally=marksFor(it).map(m=>m[0]).filter(k=>count[k]).map(k=>`<span>${k} · ${count[k]}</span>`).join('')+
     (un?`<span class="warn">not checked · ${un}</span>`:'');
   $('app').innerHTML=head(it.closed?'Scores':'Review',esc(it.title)+' · '+when(it.date),
       V.list?"V.list=false;go('bywork')":it.stack?"go('section')":"go('grade')",
@@ -915,7 +1122,7 @@ function fillSheet(){
   const n=act(s).filter(st=>!(it.scores[st.id]||{}).touched).length;
   panel(`<div class="eyebrow">${n} still unmarked</div>
     <h1 style="margin:6px 0 12px">Give them all…</h1>
-    ${MARKS.map(([k,name])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
+    ${marksFor(it).map(([k,name])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
       onclick="fillRest('${k}')"><b style="font-family:var(--mono)">${show(k)}</b> &nbsp; ${name}</button>`).join('')}
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
@@ -923,26 +1130,25 @@ function fillRest(k){
   const s=sec(),it=item();
   act(s).forEach(st=>{
     if((it.scores[st.id]||{}).touched)return;
-    it.scores[st.id]=/^[0-9]$/.test(k)?{val:+k,touched:true}:{code:k,touched:true};
+    it.scores[st.id]=isNum(k)?{val:+k,touched:true}:{code:k,touched:true};
   });
   it.synced=false;save();closeSheet();render();
 }
 function pickAny(id){
   const s=sec(),it=item();
   panel(`<div class="eyebrow">${esc(label(stu(s,id)))}</div>
-    ${(it.closed?ALLX:ALL).map(([k,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
+    ${marksFor(it).concat(it.closed?[DASH,EXCUSED]:[DASH]).map(([k,n])=>`<button class="btn ghost sm" style="text-align:left;padding-left:15px"
       onclick="setMark('${id}','${k}');closeSheet()"><b style="font-family:var(--mono)">${show(k)}</b> &nbsp; ${n}</button>`).join('')}`);
 }
 function editSheet(){
   const it=item();
   panel(`<div class="eyebrow">Edit assignment</div><div style="height:9px"></div>
-    <div class="grid2">
-      <input type="text" id="rcode" value="${esc(it.code||'')}" placeholder="e.g. 00.E.1" autocomplete="off">
-      <input type="number" inputmode="numeric" id="rseq" value="${it.seq==null?'':it.seq}" placeholder="Item #" autocomplete="off">
-    </div>
+    ${it.item?`<div class="card" style="margin:0"><div class="name">${esc(it.code)} · ${esc(it.title)}</div>
+      <div class="meta">From the docs app — change the number or name there, and it follows here.</div></div>`
+    :`<input type="text" id="rcode" value="${esc(it.code||'')}" placeholder="e.g. 00.E.1" autocomplete="off">
     <div style="height:9px"></div>
     <input type="text" id="ren" value="${esc(it.title)}" autocomplete="off"
-      autocapitalize="words" spellcheck="false">
+      autocapitalize="words" spellcheck="false">`}
     <div style="height:9px"></div>
     <input type="date" id="rdt" value="${esc(it.date)}">
     <button class="btn" onclick="doRename()">Save</button>
@@ -1025,10 +1231,11 @@ async function dropItemNow(){
   save();closeSheet();go('section');
 }
 function doRename(){
-  const s=sec(),it=item(),t=($('ren').value||'').trim(),d=$('rdt').value||it.date;
-  if(t)it.title=t;
-  const sq=($('rseq').value||'').trim(), cd=($('rcode').value||'').trim();
-  it.seq=sq===''?null:Number(sq);it.code=cd;
+  const s=sec(),it=item(),d=$('rdt').value||it.date;
+  if(!it.item){
+    const t=($('ren').value||'').trim();if(t)it.title=t;
+    it.code=($('rcode').value||'').trim();
+  }
   if(d!==it.date){it.date=d;fillAbsences(s,it)}
   it.synced=false;save();closeSheet();render();
 }
@@ -1040,16 +1247,20 @@ function closeHw(){
 
 /* ============ late work, by assignment ============ */
 VIEWS.late=function(){
-  const s=sec(),owed=owedIndex(s);
-  const rows=closedHws(s).slice().reverse().map(h=>{
+  const s=sec(),owed=owedIndex(s),since=owedSince();
+  const row=h=>{
     const who=owed[h.id]||[];
     if(!who.length)return '';
     return `<button class="rv none" style="margin-bottom:6px" onclick="V.iid='${h.id}';go('lateone')">
       <span class="mk">${who.length}</span><span class="who">${esc(h.title)}</span>
-      <span class="meta">${esc(when(h.date))}</span></button>`}).join('');
+      <span class="meta">${esc(when(h.date))}</span></button>`};
+  const all=closedHws(s).slice().reverse();
+  const rows=all.filter(h=>h.date>=since).map(row).join('');
+  const older=all.filter(h=>h.date<since).map(row).join('');
   $('app').innerHTML=head('Late work',esc(s.name),"go('section')",'Class')+
     (rows?`<p class="sub">Pick the assignment, then work down the pile.</p>${rows}`
-        :'<div class="empty">Nothing outstanding.</div>');
+        :'<div class="empty">Nothing outstanding from the last '+OWED_DAYS+' school days.</div>')+
+    (older?`<details style="margin-top:14px"><summary class="sub">Older — in Aspen</summary>${older}</details>`:'');
   bar('');
 };
 
@@ -1093,8 +1304,8 @@ VIEWS.lateone=function(){
       <div class="name trunc">${esc(label(st))}</div>
       <div class="meta">${esc(nameOf(k))}${v.rev!=null?' → '+esc(show(String(v.rev))):''}
         · ${orig?'fills the original':'regrade'}</div></div></div>
-      <div class="strip four">${['5','4','NC'].map(x=>{
-        const on=orig?markOf(v)===x:v.rev==(/^[0-9]$/.test(x)?+x:x);
+      <div class="strip" ${stripOf(marksFor(h).length-1)}>${marksFor(h).map(m=>m[0]).filter(x=>x!=='MU'&&x!=='AB').map(x=>{
+        const on=orig?markOf(v)===x:v.rev==(isNum(x)?+x:x);
         return `<button class="chip ${on?'on '+toneOf(x):''}"
           onclick="setLate('${st.id}','${x}')">${x}</button>`}).join('')}
         <button class="chip quiet" onclick="setLate('${st.id}','')">clear</button></div>
@@ -1112,11 +1323,11 @@ function applyScore(h,id,val){
   const v=Object.assign({},h.scores[id]||{});
   if(fillsOriginal(v)){
     delete v.missed;delete v.rev;delete v.sent;delete v.code;delete v.val;delete v.auto;
-    if(val!==''){if(/^[0-9]$/.test(val))v.val=+val;else v.code=val;v.touched=true}
+    if(val!==''){if(isNum(val))v.val=+val;else v.code=val;v.touched=true}
     else{v.code='--';v.missed=true}
   }else{
     if(val===''){delete v.rev;delete v.sent}
-    else{v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false}
+    else{v.rev=isNum(val)?+val:val;v.sent=false}
   }
   h.scores[id]=v;h.synced=false;
 }
@@ -1158,7 +1369,7 @@ function catchUp(id){
         <div class="row"><div class="grow">
           <div class="name trunc">${esc(h.title)}</div>
           <div class="meta">${esc(when(h.date))} · now ${esc(show(cur))}</div></div></div>
-        <div class="strip">${['5','4','NC','MU','AB'].map(k=>
+        <div class="strip" ${stripOf(marksFor(h).length)}>${marksFor(h).map(m=>m[0]).map(k=>
           `<button class="chip ${cur===k?'on '+toneOf(k):''}"
             onclick="catchUpMark('${id}','${h.id}','${k}')">${k}</button>`).join('')}</div>
       </div>`}).join('')}
@@ -1197,10 +1408,10 @@ function editHist(hid){
   const s=sec(),h=s.items.find(x=>x.id===hid),id=V.hid,v=h.scores[id]||{};
   panel(`<div class="eyebrow">${esc(label(stu(s,id)))} · ${esc(h.title)}</div>
     <p class="sub" style="margin:10px 0 6px">Score</p>
-    <div class="strip six">${ALLX.map(([k])=>`<button class="chip ${markOf(v)===k?'on '+toneOf(k):''}"
+    <div class="strip" ${stripOf(marksFor(h).length+2)}>${marksFor(h).concat([DASH,EXCUSED]).map(([k])=>`<button class="chip ${markOf(v)===k?'on '+toneOf(k):''}"
       onclick="setHist('${hid}','s','${k}')">${show(k)}</button>`).join('')}</div>
     <p class="sub" style="margin:15px 0 6px">Regrade${v.rev!=null?' — now '+esc(show(String(v.rev))):''}</p>
-    <div class="strip">${['5','4','NC'].map(k=>`<button class="chip" onclick="setHist('${hid}','r','${k}')">${k}</button>`).join('')}
+    <div class="strip">${marksFor(h).map(m=>m[0]).filter(k=>k!=='MU'&&k!=='AB').map(k=>`<button class="chip" onclick="setHist('${hid}','r','${k}')">${k}</button>`).join('')}
       <button class="chip quiet" onclick="setHist('${hid}','r','')">none</button>
       <button class="chip quiet" onclick="closeSheet()">Cancel</button></div>`);
 }
@@ -1209,11 +1420,11 @@ function setHist(hid,kind,val){
   if(kind==='s'){
     delete v.val;delete v.code;delete v.auto;delete v.missed;
     if(val==='--'){v.code='--';v.missed=true}
-    else if(/^[0-9]$/.test(val)){v.val=+val;v.touched=true}
+    else if(isNum(val)){v.val=+val;v.touched=true}
     else{v.code=val;v.touched=true}
   }else{
     if(val===''){delete v.rev;delete v.sent}
-    else{v.rev=/^[0-9]$/.test(val)?+val:val;v.sent=false}
+    else{v.rev=isNum(val)?+val:val;v.sent=false}
   }
   h.scores[id]=v;h.synced=false;save();closeSheet();render();
 }
@@ -1332,17 +1543,17 @@ async function pullTitles(){
       const h=mine[x.id];
       if(!h){unknown++;return}
       if(!h.synced){held++;return}
-      const seq=x.seq===''?null:Number(x.seq);
+      // a linked assignment's number and name belong to the docs app
+      if(h.item){held++;return}
       let hit=false;
       if(x.code&&x.code!==h.code){h.code=x.code;hit=true}
       if(x.title&&x.title!==h.title){h.title=x.title;hit=true}
-      if(x.seq!==''&&!isNaN(seq)&&seq!==h.seq){h.seq=seq;hit=true}
       if(hit)changed++;
     });
     save();
     V.ok=changed?`Updated ${changed} assignment${changed===1?'':'s'}`+
-        (held?` · ${held} skipped, still unsent`:'')
-      :(held?`Nothing changed · ${held} skipped, still unsent`
+        (held?` · ${held} skipped — unsent, or kept by the docs app`:'')
+      :(held?`Nothing changed · ${held} skipped — unsent, or kept by the docs app`
         :d.bands===false?'That gradebook has no heading rows yet — send this class to the sheet once first.'
         :'Nothing to update — the sheet matches the app.');
     render();
@@ -1693,7 +1904,7 @@ async function syncOne(id,quiet,full){
   const pack=x=>{
     const o={id:x.id,kind:x.kind,date:x.date,iso:x.date,label:when(x.date)};
     if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
-    else{o.title=nameOnly(x);o.code=x.code||'';o.seq=x.seq==null?'':x.seq;o.scores={};
+    else{o.title=nameOnly(x);o.code=x.code||'';o.scores={};
       s.students.forEach(st=>{const v=x.scores[st.id];
         if(v)o.scores[kk[st.id]]={val:v.val,code:v.code,rev:v.rev,sent:!!v.sent}})}
     return o;
@@ -1791,12 +2002,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 64';
+const BUILD='2026-10-07 · 65';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-64';
+const SCRIPT_WANTED='hw-65';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 function heard(d){
   if(d&&typeof d==='object'){
@@ -1832,7 +2043,7 @@ async function forceUpdate(){
 }
 /* Data only — never the URL or token. These files live in Drive indefinitely,
    and the token is write access to the gradebook. */
-const backupBlob=()=>JSON.stringify({sections:S.sections,cfg:{}});
+const backupBlob=()=>JSON.stringify({sections:S.sections,cfg:{hidden:S.cfg.hidden||{}}});
 function backupAge(){
   if(!S.cfg.lastBackup)return null;
   return Math.floor((Date.now()-S.cfg.lastBackup)/86400000);
