@@ -146,6 +146,20 @@ textarea{min-height:150px;font-family:var(--mono);font-size:12.5px;line-height:1
 .tally span.warn{color:var(--attention);border-color:var(--attention)}
 /* a chip stays on one line and loses its tail rather than growing a second */
 .tally span.one{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* The folded groups of a picker: one quiet list, a count on the right, rather
+   than a stack of full-width buttons. display:block - a flex <button> misbehaves
+   in Safari. */
+.folds{border:1px solid var(--edge);border-radius:12px;margin-top:12px;overflow:hidden}
+.fold{display:block;width:100%;background:none;border:0;border-top:1px solid var(--edge);color:var(--ink);
+  font:inherit;font-size:15px;text-align:left;padding:12px 13px}
+.fold:first-child{border-top:0}
+.fold:active{background:var(--raised)}
+.fold .ar{display:inline-block;width:18px;color:var(--muted)}
+.fold .n{float:right;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.folds .in{padding:0 9px 9px}
+/* A word that does something, for the actions that should not shout */
+.textbtn{background:none;border:0;padding:6px 2px;font:inherit;font-size:16px;color:var(--info)}
+.textbtn.quiet{color:var(--muted);font-size:15px}
 .warnbox{background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.45);border-radius:12px;padding:12px;margin-bottom:11px}
 .okbox{border:1px solid var(--confirm);border-radius:12px;padding:12px;margin-bottom:11px}
 .empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:15px}
@@ -712,7 +726,7 @@ function pickCourse(){
     ${Object.keys(COURSES).map(k=>`<button class="btn ghost" onclick="setCourse('${k}')">${COURSES[k]}</button>`).join('')}
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
-function setCourse(k){const s=sec();s.course=k;save();closeSheet();render();newHwSheet(true)}
+function setCourse(k,stay){const s=sec();s.course=k;save();closeSheet();render();if(!stay)newHwSheet(true)}
 async function readList(course,quiet){
   const c=S.cfg;
   if(!c.url||!c.token)return false;
@@ -768,6 +782,14 @@ function toggleHidden(i){
 }
 let PICK=[];
 function pickItem(i){V.pick=PICK[i]||null;V.typing=false;newHwSheet()}
+/* The folded groups of a picker as one list: [flag in V, label, items]. A row
+   opens in place; an empty group is left out. */
+function foldList(groups,row,redraw){
+  const html=groups.filter(g=>g[2].length).map(([f,label,list])=>
+    `<button class="fold" onclick="V.${f}=!V.${f};${redraw}"><span class="ar">${V[f]?'▾':'▸'}</span>${esc(label)}<span class="n">${list.length}</span></button>`+
+    (V[f]?`<div class="in">${list.map(row).join('')}</div>`:'')).join('');
+  return html?`<div class="folds">${html}</div>`:'';
+}
 function newHwSheet(fresh){
   const s=sec();
   if(!s.course)return pickCourse();
@@ -788,19 +810,15 @@ function newHwSheet(fresh){
       <button class="chip quiet" style="width:58px;padding:7px 0;flex:none" onclick="toggleHidden(${i})">${hid.includes(x.item)?'show':'hide'}</button></div>`};
   const ready=!!V.pick||V.typing;
   const recent=RECENT=recentTitles(s);
-  panel(`<div id="picker"></div><div class="row" style="align-items:center;gap:8px"><div class="eyebrow grow">${esc(s.name)} · ${esc(COURSES[s.course])}
-      <span onclick="pickCourse()" style="cursor:pointer;text-decoration:underline">change</span></div><button class="chip quiet" style="flex:none" onclick="closeSheet()">Cancel</button></div>
-    <h1 style="margin:6px 0 8px">New assignment</h1>
+  panel(`<div id="picker"></div><div class="eyebrow">${esc(s.name)} · ${esc(COURSES[s.course])}</div>
+    <div class="row" style="align-items:baseline;margin:6px 0 8px"><h1 class="grow" style="margin:0">New assignment</h1>
+      <button class="textbtn" onclick="closeSheet()">Cancel</button></div>
     <div class="meta">${L?'Docs list read '+esc(readAt(L))+(L.note?' · '+esc(L.note):''):'The docs list has not been read yet.'}</div>
     ${tag?'':`<div class="meta" style="margin-top:4px">This class's name doesn't start with its period, so every document is listed.</div>`}
     ${first.map(row).join('')||(L?'<div class="meta" style="margin-top:8px">Nothing assigned in the docs app that this class hasn\'t had.</div>':'')}
-    ${more.length?`<button class="btn ghost sm" style="margin-top:9px" onclick="V.more=!V.more;newHwSheet()">${V.more?'Fewer':'More'} — ${more.length} not marked assigned</button>
-      ${V.more?more.map(row).join(''):''}`:''}
-    ${hidden.length?`<button class="btn ghost sm" onclick="V.showHidden=!V.showHidden;newHwSheet()">Hidden — ${hidden.length} not graded here</button>
-      ${V.showHidden?hidden.map(row).join(''):''}`:''}
-    ${unshared.length?`<button class="btn ghost sm" onclick="V.showUnshared=!V.showUnshared;newHwSheet()">Not shared with ${esc(tag)} — ${unshared.length}</button>
-      ${V.showUnshared?unshared.map(row).join(''):''}`:''}
-    <button class="btn ghost sm" onclick="V.typing=!V.typing;V.pick=null;newHwSheet()">${V.typing?'Pick from the docs app instead':'Type one instead — no document'}</button>
+    ${foldList([['more','Not marked assigned',more],['showHidden','Hidden by you',hidden],
+               ['showUnshared','Not shared with '+tag,unshared]],row,'newHwSheet()')}
+    <button class="textbtn quiet" style="margin-top:8px" onclick="V.typing=!V.typing;V.pick=null;newHwSheet()">${V.typing?'Pick from the docs app instead':'No document? Type the number instead'}</button>
     ${V.typing?`<input type="text" id="scode" value="" placeholder="e.g. 00.E.1" autocomplete="off">
     <div style="height:9px"></div>
     <input type="text" id="ttl" value="" placeholder="Name (optional)" autocomplete="off"
@@ -1007,11 +1025,11 @@ function pickFor(id){
   PICK=shown.concat(unshared,taken);
   const btn=x=>`<button class="rv none" style="margin-top:6px" onclick="linkTo('${h.id}',PICK[${PICK.indexOf(x)}])">
       <span class="who">${esc(x.label)} · ${esc(x.name)}${x.item===h.item?' (now)':''}</span></button>`;
-  panel(`<div class="row" style="align-items:center;gap:8px"><div class="eyebrow grow">Link ${esc(h.title)} to…</div><button class="chip quiet" style="flex:none" onclick="closeSheet()">Cancel</button></div>
+  panel(`<div class="row" style="align-items:baseline;gap:8px"><div class="eyebrow grow">Link ${esc(h.title)} to…</div>
+      <button class="textbtn" onclick="closeSheet()">Cancel</button></div>
     ${tag?'':`<div class="meta" style="margin-top:6px">This class's name doesn't start with its period, so every document is listed.</div>`}
     ${shown.map(btn).join('')||`<div class="meta" style="margin-top:6px">Nothing in the docs app is shared with ${esc(tag)} yet.</div>`}
-    ${unshared.length?`<details style="margin-top:12px"><summary class="sub">Not shared with ${esc(tag)} — ${unshared.length}</summary>
-      ${unshared.map(btn).join('')}</details>`:''}
+    ${foldList([['linkUnshared','Not shared with '+tag,unshared]],btn,`pickFor('${h.id}')`)}
     ${taken.length?`<div class="meta" style="margin-top:12px">Or as another grade of one already here — it takes the next letter:</div>
       ${taken.map(btn).join('')}`:''}
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
@@ -1702,7 +1720,10 @@ VIEWS.roster=function(){
     <button class="chip quiet" style="width:82px;padding:8px 0"
       onclick="${arch?`unarchive('${st.id}')`:`archive('${st.id}')`}">${arch?'Restore':'Remove'}</button></div>`;
   $('app').innerHTML=head('Roster',esc(s.name),"go('section')",'Class')+
-    `<p class="sub">${act(s).length} enrolled. Removing keeps every score they already have.</p>
+    `<p class="sub" style="margin-bottom:7px">Course — which assignments the docs app offers this class</p>
+     <div class="grid2" style="gap:7px;margin-bottom:20px">${Object.keys(COURSES).map(k=>
+       `<button class="chip${s.course===k?' on':''}" onclick="setCourse('${k}',true)">${COURSES[k]}</button>`).join('')}</div>
+     <p class="sub">${act(s).length} enrolled. Removing keeps every score they already have.</p>
      ${act(s).slice().sort(byName).map(st=>row(st,false)).join('')}
      ${left.length?`<p class="sub" style="margin-top:20px">No longer in this class</p>
        ${left.slice().sort(byName).map(st=>row(st,true)).join('')}`:''}
@@ -2125,12 +2146,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 73';
+const BUILD='2026-10-07 · 74';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-73';
+const SCRIPT_WANTED='hw-74';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
