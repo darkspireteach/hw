@@ -696,6 +696,13 @@ const COURSES={applied:'Applied Physics',ap:'AP Physics'};
 /* The list per course as last read, kept so a room with no signal can still
    start an assignment. Re-read whenever the picker opens. */
 let DOCS=(()=>{try{return JSON.parse(localStorage.getItem('hw:docs')||'{}')||{}}catch(e){return {}}})();
+/* When the docs list was read, in local time. The stored time is UTC, so its
+   own characters said Thurs 02:11 for a Wednesday-evening read. */
+function readAt(L){
+  const d=new Date(L.read);if(isNaN(d))return '';
+  return when(iso(d.getFullYear(),d.getMonth()+1,d.getDate()))+' '+
+    String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
 function saveDocs(){try{localStorage.setItem('hw:docs',JSON.stringify(DOCS))}catch(e){}}
 function pickCourse(){
   const s=sec();
@@ -717,7 +724,7 @@ async function readList(course,quiet){
     // an older script answers this as an ordinary sync, with a count, not a list
     if(!Array.isArray(d.items)){V.err='The script behind the sheet is older than '+SCRIPT_WANTED+
       ' and has no docs list — deploy Code.gs.';render();return false}
-    DOCS[course]={read:d.read||new Date().toISOString(),items:d.items||[]};saveDocs();
+    DOCS[course]={read:d.read||new Date().toISOString(),items:d.items||[],note:d.note||''};saveDocs();
     const notes=applyList(course);
     if(notes.length){V.warn=notes.join(' · ');render()}
     return true;
@@ -764,30 +771,35 @@ function pickItem(i){V.pick=PICK[i]||null;V.typing=false;newHwSheet()}
 function newHwSheet(fresh){
   const s=sec();
   if(!s.course)return pickCourse();
-  if(fresh){V.pick=null;V.typing=false;V.more=false;V.showHidden=false;
+  if(fresh){V.pick=null;V.typing=false;V.more=false;V.showHidden=false;V.showUnshared=false;
     readList(s.course,true).then(ok=>{if(ok&&$('picker'))newHwSheet()})}
   const L=DOCS[s.course],used={},hid=hiddenOf(s.course);
   hws(s).forEach(h=>{if(h.item)used[h.item]=true});
-  const open=(L?L.items:[]).filter(x=>!used[x.item]);
+  // what this class can see, as the docs app shares it; the rest are folded away
+  const all=(L?L.items:[]).filter(x=>!used[x.item]),tag=classTag(s);
+  const open=all.filter(x=>sharedWith(s,x)),unshared=all.filter(x=>!sharedWith(s,x));
   const first=open.filter(x=>x.assigned&&!hid.includes(x.item));
   const more=open.filter(x=>!x.assigned&&!hid.includes(x.item));
   const hidden=open.filter(x=>hid.includes(x.item));
-  PICK=first.concat(more,hidden);
+  PICK=first.concat(more,hidden,unshared);
   const row=x=>{const i=PICK.indexOf(x),on=V.pick&&V.pick.item===x.item;
     return `<div class="row" style="margin-top:6px"><button class="rv ${on?'good':'none'} grow" style="margin:0"
-      onclick="pickItem(${i})"><span class="mk">${on?'✓':''}</span><span class="who">${esc(x.label)} · ${esc(x.name)}</span></button>
+      onclick="pickItem(${i})">${on?'<span class="mk">✓</span>':''}<span class="who">${esc(x.label)} · ${esc(x.name)}</span></button>
       <button class="chip quiet" style="width:58px;padding:7px 0;flex:none" onclick="toggleHidden(${i})">${hid.includes(x.item)?'show':'hide'}</button></div>`};
   const ready=!!V.pick||V.typing;
   const recent=RECENT=recentTitles(s);
-  panel(`<div id="picker"></div><div class="eyebrow">${esc(s.name)} · ${esc(COURSES[s.course])}
-      <span onclick="pickCourse()" style="cursor:pointer;text-decoration:underline">change</span></div>
+  panel(`<div id="picker"></div><div class="row" style="align-items:center;gap:8px"><div class="eyebrow grow">${esc(s.name)} · ${esc(COURSES[s.course])}
+      <span onclick="pickCourse()" style="cursor:pointer;text-decoration:underline">change</span></div><button class="chip quiet" style="flex:none" onclick="closeSheet()">Cancel</button></div>
     <h1 style="margin:6px 0 8px">New assignment</h1>
-    <div class="meta">${L?'Docs list read '+esc(when(L.read.slice(0,10)))+' '+esc(L.read.slice(11,16)):'The docs list has not been read yet.'}</div>
+    <div class="meta">${L?'Docs list read '+esc(readAt(L))+(L.note?' · '+esc(L.note):''):'The docs list has not been read yet.'}</div>
+    ${tag?'':`<div class="meta" style="margin-top:4px">This class's name doesn't start with its period, so every document is listed.</div>`}
     ${first.map(row).join('')||(L?'<div class="meta" style="margin-top:8px">Nothing assigned in the docs app that this class hasn\'t had.</div>':'')}
     ${more.length?`<button class="btn ghost sm" style="margin-top:9px" onclick="V.more=!V.more;newHwSheet()">${V.more?'Fewer':'More'} — ${more.length} not marked assigned</button>
       ${V.more?more.map(row).join(''):''}`:''}
     ${hidden.length?`<button class="btn ghost sm" onclick="V.showHidden=!V.showHidden;newHwSheet()">Hidden — ${hidden.length} not graded here</button>
       ${V.showHidden?hidden.map(row).join(''):''}`:''}
+    ${unshared.length?`<button class="btn ghost sm" onclick="V.showUnshared=!V.showUnshared;newHwSheet()">Not shared with ${esc(tag)} — ${unshared.length}</button>
+      ${V.showUnshared?unshared.map(row).join(''):''}`:''}
     <button class="btn ghost sm" onclick="V.typing=!V.typing;V.pick=null;newHwSheet()">${V.typing?'Pick from the docs app instead':'Type one instead — no document'}</button>
     ${V.typing?`<input type="text" id="scode" value="" placeholder="e.g. 00.E.1" autocomplete="off">
     <div style="height:9px"></div>
@@ -902,7 +914,7 @@ VIEWS.link=function(){
         <button class="chip quiet" style="flex:1" onclick="undoLink('${h.id}')">Undo</button></div>
     </div>`).join('');
   $('app').innerHTML=head('Link to the docs app',esc(s.name),"go('section')",'Class')+banner()+
-    `<div class="meta" style="margin-bottom:8px">Docs list read ${esc(when(L.read.slice(0,10)))} ${esc(L.read.slice(11,16))}</div>`+
+    `<div class="meta" style="margin-bottom:8px">Docs list read ${esc(readAt(L))}${L.note?' · '+esc(L.note):''}</div>`+
     (rows?`<p class="sub">Linking takes the number and name from the docs app, here and in the gradebook.</p>
       <div class="card">${rows}</div>`:'<div class="empty">Nothing left to decide.</div>')+
     (decided?`<details style="margin-top:14px"><summary class="sub">Already decided — ${done.length}</summary>
@@ -995,7 +1007,7 @@ function pickFor(id){
   PICK=shown.concat(unshared,taken);
   const btn=x=>`<button class="rv none" style="margin-top:6px" onclick="linkTo('${h.id}',PICK[${PICK.indexOf(x)}])">
       <span class="who">${esc(x.label)} · ${esc(x.name)}${x.item===h.item?' (now)':''}</span></button>`;
-  panel(`<div class="eyebrow">Link ${esc(h.title)} to…</div>
+  panel(`<div class="row" style="align-items:center;gap:8px"><div class="eyebrow grow">Link ${esc(h.title)} to…</div><button class="chip quiet" style="flex:none" onclick="closeSheet()">Cancel</button></div>
     ${tag?'':`<div class="meta" style="margin-top:6px">This class's name doesn't start with its period, so every document is listed.</div>`}
     ${shown.map(btn).join('')||`<div class="meta" style="margin-top:6px">Nothing in the docs app is shared with ${esc(tag)} yet.</div>`}
     ${unshared.length?`<details style="margin-top:12px"><summary class="sub">Not shared with ${esc(tag)} — ${unshared.length}</summary>
@@ -2113,12 +2125,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 71';
+const BUILD='2026-10-07 · 73';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-71';
+const SCRIPT_WANTED='hw-73';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
