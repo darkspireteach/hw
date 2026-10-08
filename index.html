@@ -267,6 +267,14 @@ function load(){
      &&!(localStorage.getItem('hw:trash')||'').length){
     sections=[demo()];
   }
+  /* Before build 75 a pasted roster kept its third and fourth columns, unseen
+     and unused, on the phone and in every backup. Clear any already stored. */
+  try{
+    sections.forEach(s=>{if(bareRoster(s.students))localStorage.setItem('hw:s:'+s.id,JSON.stringify(s))});
+    const bin=readTrash();
+    if(bin.reduce((n,e)=>n+(e.kind==='class'&&e.data?bareRoster(e.data.students):0),0))
+      localStorage.setItem('hw:trash',JSON.stringify(bin));
+  }catch(e){}
   sections.forEach(migrate);
   return {sections,cfg};
 }
@@ -282,6 +290,12 @@ function save(all){
 function saveAll(){save(true)}
 function forget(id){try{localStorage.removeItem('hw:s:'+id)}catch(e){}}
 
+/** drop what a pasted roster used to keep beyond the name; how many had it */
+function bareRoster(list){
+  let n=0;
+  (list||[]).forEach(st=>{if(st&&('extra' in st||'cubby' in st)){delete st.extra;delete st.cubby;n++}});
+  return n;
+}
 /* Old builds stored one "meeting" holding attendance and scores together.
    Split each into a session and an assignment so nothing is lost. */
 function migrate(s){
@@ -296,6 +310,7 @@ function migrate(s){
     delete s.meetings;
   }
   s.students=s.students||[];
+  bareRoster(s.students);
   // older builds recorded a joiner as a count; make it an explicit mark instead
   const wasClosed=s.items.filter(x=>x.kind==='hw'&&x.closed);
   s.students.forEach(st=>{
@@ -369,8 +384,8 @@ function parseRoster(raw){
       const named=cells.find(c=>c.indexOf(',')>=0);
       if(named)return byComma(named);
       const p=line.split('\t');
-      return {id:uid(),last:(p[0]||'').trim(),first:(p[1]||'').trim(),
-              extra:(p[2]||'').trim(),cubby:(p[3]||'').trim()};
+      // only the name: other columns, a student ID among them, are dropped here
+      return {id:uid(),last:(p[0]||'').trim(),first:(p[1]||'').trim()};
     }
     if(line.indexOf(',')>=0)return byComma(line);    // "Cox, Brian"
     // typed by hand, spaces only — no Tab key on an iPhone. Read it as
@@ -2146,12 +2161,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 74';
+const BUILD='2026-10-08 · 75';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-74';
+const SCRIPT_WANTED='hw-75';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
