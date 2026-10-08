@@ -592,8 +592,9 @@ VIEWS.section=function(){
       <div class="grid2" style="margin-top:8px">${Object.keys(COURSES).map(k=>
         `<button class="btn ghost sm" style="margin:0" onclick="sec().course='${k}';save();render()">${COURSES[k]}</button>`).join('')}</div>
       <div class="meta" style="margin-top:6px">Asked once — it picks which assignments the docs app offers.</div></div>`
-    :unlinked?`<button class="card tap" onclick="go('link')"><div class="name">Link to the docs app</div>
-      <div class="meta">${unlinked} assignment${unlinked===1?'':'s'} typed by hand — match ${unlinked===1?'it':'them'} to the docs app's numbers</div></button>`:'';
+    :`<button class="card tap" onclick="openLink()"><div class="name">Link to the docs app</div>
+      <div class="meta">${unlinked?`${unlinked} assignment${unlinked===1?'':'s'} typed by hand — match ${unlinked===1?'it':'them'} to the docs app's numbers`
+        :'Every assignment is decided — change or undo a link'}</div></button>`;
   $('app').innerHTML=head(s.name,'',"go('home')",'Classes')+banner()+setup+todayCard+
     (others.length?`<div class="card"><div class="eyebrow" style="color:var(--attention)">Unfinished</div>
       ${others.map(x=>`<div class="rv none" style="margin-top:7px">
@@ -901,6 +902,8 @@ VIEWS.link=function(){
         <button class="chip quiet" style="flex:1" onclick="undoLink('${h.id}')">Undo</button></div>
     </div>`).join('');
   $('app').innerHTML=head('Link to the docs app',esc(s.name),"go('section')",'Class')+banner()+
+    `<div class="row" style="gap:8px;align-items:center;margin-bottom:8px"><div class="meta grow">Docs list read ${esc(when(L.read.slice(0,10)))} ${esc(L.read.slice(11,16))}</div>
+      <button class="chip quiet" style="flex:none" onclick="readList(sec().course).then(()=>render())">Read again</button></div>`+
     (rows?`<p class="sub">Linking takes the number and name from the docs app, here and in the gradebook.</p>
       <div class="card">${rows}</div>`:'<div class="empty">Nothing left to decide.</div>')+
     (decided?`<details style="margin-top:14px"><summary class="sub">Already decided — ${done.length}</summary>
@@ -908,6 +911,7 @@ VIEWS.link=function(){
   bar(`<button class="btn ghost" onclick="go('section')">Done</button>`);
 };
 const hwById=id=>hws(sec()).find(h=>h.id===id);
+function openLink(){go('link');readList(sec().course,true).then(ok=>{if(ok&&V.view==='link')render()})}
 // the docs items this assignment may take: any not already linked elsewhere in the class
 function freeFor(s,h){
   const used={};hws(s).forEach(o=>{if(o!==h&&o.item&&!o.lost)used[o.item]=true});
@@ -2100,12 +2104,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 67';
+const BUILD='2026-10-07 · 68';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-67';
+const SCRIPT_WANTED='hw-68';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
@@ -2136,6 +2140,12 @@ function scriptNote(){
    cached copy on iOS, especially inside a home-screen app. Comparing the fetched
    BUILD string against this page's is how we know whether it worked, instead of
    just reloading and hoping. */
+/* Ask the script which version it is: any GET answers with it, no token. The
+   note beside an error is then today's answer, not the last one remembered. */
+async function checkScript(){
+  const c=S.cfg;if(!c.url)return;
+  try{const r=await fetch(c.url,{cache:'no-store'});heard(await readJson(r));render()}catch(e){}
+}
 async function forceUpdate(){
   V.busy='Checking for an update…';V.err=V.ok=null;render();
   try{
@@ -2144,7 +2154,7 @@ async function forceUpdate(){
     const m=t.match(/const BUILD='([^']+)'/);
     V.busy=null;
     if(!m){V.err='Could not read the new build. Try again in a minute.';render();return}
-    if(m[1]===BUILD){V.ok='Already on the latest build ('+esc(BUILD)+').';render();return}
+    if(m[1]===BUILD){V.ok='Already on the latest build ('+esc(BUILD)+').';render();checkScript();return}
     sessionStorage.setItem('hw:afterUpdate','menu');
     location.replace(location.pathname+'?v='+Date.now());
   }catch(e){
@@ -2261,6 +2271,7 @@ const resume=sessionStorage.getItem('hw:afterUpdate');
 if(resume){
   sessionStorage.removeItem('hw:afterUpdate');
   V.view=resume;V.ok='Updated — now on build '+BUILD+'.';
+  checkScript();
 }
 render();
 autoBackup();
