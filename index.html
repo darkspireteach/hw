@@ -711,7 +711,7 @@ async function readList(course,quiet){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'assignments',course})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     if(!d.ok){if(!quiet){V.err=d.error||'The docs list could not be read.';render()}return false}
     // an older script answers this as an ordinary sync, with a count, not a list
     if(!Array.isArray(d.items)){V.err='The script behind the sheet is older than '+SCRIPT_WANTED+
@@ -1237,7 +1237,7 @@ async function dropItemNow(){
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({token:c.token,action:'dropItem',section:s.name,
           id:it.id,kind:it.kind,iso:it.date})});
-      const d=heard(await r.json());
+      const d=heard(await readJson(r));
       if(!d.ok){V.busy=null;V.err=(d.error||'The sheet refused it')+' — nothing was deleted.';render();return}
     }catch(e){
       V.busy=null;V.err='Could not reach the sheet — nothing was deleted.';render();return;
@@ -1504,7 +1504,7 @@ async function pullSeats(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'seats',section:s.name})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     V.busy=null;
     if(!d.ok){V.err=d.error||'Could not read the seating chart.';render();return}
     const key=n=>String(n||'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -1554,7 +1554,7 @@ async function pullSeats(){
 function why(e){
   const m=(e&&e.message)||String(e||'');
   if(/load failed|network|fetch|connection|offline/i.test(m))return 'no answer from the network';
-  if(/JSON|Unexpected token|SyntaxError/i.test(m))return 'the script answered with an error page, not data — check the Apps Script deployment is up to date';
+  if(/JSON|Unexpected token|SyntaxError|did not match the expected pattern/i.test(m))return 'the script answered with an error page, not data — check the Apps Script deployment is up to date';
   return m||'no reason given';
 }
 async function pullTitles(){
@@ -1564,7 +1564,7 @@ async function pullTitles(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'titles',section:s.name})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     V.busy=null;
     if(!d.ok){V.err=d.error||'Could not read the headings.';render();return}
     const mine={};hws(s).forEach(h=>mine[h.id]=h);
@@ -1740,7 +1740,7 @@ async function wipeAndRebuild(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'wipe',section:s.name})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     if(!d.ok){V.busy=null;V.err=d.error||'The script refused the request.';render();return}
     s.items.forEach(x=>{if(x.closed)x.synced=false});
     save();
@@ -1916,7 +1916,7 @@ async function syncOne(id,quiet,full){
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({token:c.token,section:s.name,idx:S.sections.indexOf(s),
           students:roster0,items:[]})});
-      const d=heard(await r.json());
+      const d=heard(await readJson(r));
       V.busy=null;
       V.ok=d.ok?'Nothing new to send — sheet refreshed.':(d.error||'The sheet refused the request.');
       if(!d.ok)V.err=V.ok,V.ok=null;
@@ -1957,7 +1957,7 @@ async function syncOne(id,quiet,full){
     try{
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify(payload)});
-      const d=heard(await r.json());
+      const d=heard(await readJson(r));
       if(!d.ok){
         // "busy" means another request holds the spreadsheet lock — the script
         // is telling us to wait, not that anything went wrong. Waiting is the
@@ -2039,6 +2039,18 @@ const BUILD='2026-10-07 · 66';
    is out of step names itself. */
 const SCRIPT_WANTED='hw-66';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
+/* Read a reply as data, and when it isn't, say what came instead. Google
+   answers some requests with a web page of its own (sign-in, authorization
+   needed, a server error, a network filter's block page) and Safari reports
+   that only as "the string did not match the expected pattern". */
+async function readJson(r){
+  const t=await r.text();
+  try{return JSON.parse(t)}catch(e){
+    const m=t.match(/<title[^>]*>([^<]*)<\/title>/i),name=m?m[1].replace(/\s+/g,' ').trim():'';
+    throw new Error('the script answered with a web page, not data'+(name?' — "'+name.slice(0,80)+'"':'')+
+      (r.status&&r.status!==200?' (status '+r.status+')':''));
+  }
+}
 function heard(d){
   if(d&&typeof d==='object'){
     script=d.version?String(d.version):'older than hw-64';
@@ -2089,7 +2101,7 @@ async function autoBackup(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'backup',blob:backupBlob()})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     if(d.ok&&d.saved){S.cfg.lastBackup=Date.now();S.cfg.backupName=d.saved;saveAll();
       if(V.view==='home'||V.view==='backup')render()}
     // the script answered but saved nothing — that reason is the useful part
@@ -2141,7 +2153,7 @@ async function pushCubbies(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'cubbies',classes})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     V.busy=null;
     if(!d.ok){V.err=d.error||'The script refused the request.';render();return}
     V.ok=`Cubby list built — ${d.classes} class${d.classes===1?'':'es'}, ${d.students} students.`;
