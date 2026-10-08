@@ -738,12 +738,12 @@ function applyList(course){
       h.lost=true;return;
     }
     delete h.lost;
-    let hit=false;
-    if(x.label!==h.code){
-      if(h.closed&&h.code)notes.push(`${h.code} is now ${x.label} (${s.name}) — change it in Aspen`);
-      h.code=x.label;hit=true;
+    let hit=false;const want=partOf(x,h);
+    if(want.code!==h.code){
+      if(h.closed&&h.code)notes.push(`${h.code} is now ${want.code} (${s.name}) — change it in Aspen`);
+      h.code=want.code;hit=true;
     }
-    if(x.name!==h.title){h.title=x.name;hit=true}
+    if(want.title!==h.title){h.title=want.title;hit=true}
     h.scale=x.pts||'';
     if(hit&&h.closed)h.synced=false;
   })});
@@ -862,6 +862,9 @@ function suggest(h,items){
   const code=String(h.code||'').trim().toLowerCase();
   const same=items.find(x=>x.label.toLowerCase()===code);
   if(same)return same;
+  const m=code.match(/^(.*\d)([a-h])$/),all=(DOCS[sec().course]||{}).items||[];
+  const base=m&&all.find(x=>x.label.toLowerCase()===m[1]);
+  if(base&&!hws(sec()).some(o=>o!==h&&o.item===base.item&&o.sub===m[2]))return base;
   let best=null,score=0;
   items.forEach(x=>{const k=likeness(h.title,x.name);if(k>score){score=k;best=x}});
   return score>=0.5?best:null;
@@ -913,20 +916,79 @@ function freeFor(s,h){
 /* What the assignment was before its first link is kept, so Undo can put it
    back. Linked before build 66, there is nothing kept, and Undo leaves the
    docs app's number and name as typed text, which can then be edited. */
+/* One docs assignment can carry several grades in a class, lettered as Aspen
+   names them: 00.A.2a, 00.A.2b. Each keeps the docs number and name, so both
+   follow a renumber, plus a short label of its own ("Student email"). */
+const LETTERS='abcdefgh';
+const partOf=(x,h)=>({code:x.label+(h.sub||''),title:x.name+(h.subName?' · '+h.subName:'')});
+const siblings=(s,h,item)=>hws(s).filter(o=>o!==h&&o.item===item&&!o.lost);
+function letterFor(s,h,item,want){
+  const used=siblings(s,h,item).map(o=>o.sub);
+  return want&&!used.includes(want)?want:[...LETTERS].find(l=>!used.includes(l));
+}
+/* A grade that takes a letter after the fact changes its number: 00.A.2 is
+   now 00.A.2a, and Aspen will not follow on its own. */
+function letterOn(s,o,x){
+  if(o.sub)return;
+  o.sub='a';const was=o.code;Object.assign(o,partOf(x,o));
+  if(o.closed){o.synced=false;if(was&&was!==o.code)V.warn=`${was} is now ${o.code} (${s.name}) — change it in Aspen`}
+}
 function linkTo(id,x){
-  const h=typeof id==='number'?(LINKS[id]||{}).h:hwById(id);if(!h||!x)return;
+  const s=sec(),h=typeof id==='number'?(LINKS[id]||{}).h:hwById(id);if(!h||!x)return;
   if(!h.item&&!h.was)h.was={code:h.code||'',title:h.title||'',scale:h.scale||''};
-  h.item=x.item;h.code=x.label;h.title=x.name;h.scale=x.pts||'';delete h.lost;delete h.typed;
+  const sib=siblings(s,h,x.item);
+  // a typed 00.A.2b keeps its letter; so does a grade re-linked where it was
+  const typed=String((h.was||{}).code||'').trim().toLowerCase().match(/^(.*\d)([a-h])$/);
+  const want=h.item===x.item&&h.sub?h.sub:(typed&&typed[1]===x.label.toLowerCase()?typed[2]:'');
+  if(sib.length||want){
+    // another grade of an assignment already here: every one carries a letter
+    sib.forEach(o=>letterOn(s,o,x));
+    h.sub=letterFor(s,h,x.item,want);
+    if(!h.subName&&h.was&&h.was.title&&h.was.title!==h.was.code)h.subName=h.was.title;
+  }else if(h.item!==x.item){delete h.sub;delete h.subName}
+  h.item=x.item;Object.assign(h,partOf(x,h));h.scale=x.pts||'';delete h.lost;delete h.typed;
   if(h.closed)h.synced=false;
   save();closeSheet();render();
+}
+// "Add another grade": a second column for the same docs assignment, same day
+function addGradeSheet(){
+  const it=item();
+  panel(`<div class="eyebrow">Another grade for ${esc(it.code)}</div>
+    <p class="sub" style="margin:6px 0 9px">Each grade is its own column, lettered as Aspen names it.</p>
+    <div class="meta">${esc(it.code.replace(/[a-h]$/,'')+(it.sub||'a'))} is</div>
+    <input type="text" id="gsa" value="${esc(it.subName||'')}" placeholder="e.g. Student email" autocomplete="off">
+    <div style="height:9px"></div>
+    <div class="meta">and the new one is</div>
+    <input type="text" id="gsb" value="" placeholder="e.g. Parent email" autocomplete="off">
+    <button class="btn" onclick="addGrade()">Add it</button>
+    <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
+}
+function addGrade(){
+  const s=sec(),h=item();if(!h||!h.item)return;
+  const x=((DOCS[s.course]||{}).items||[]).find(i=>i.item===h.item)||
+    {item:h.item,label:String(h.code||'').replace(new RegExp((h.sub||'')+'$'),''),
+     name:String(h.title||'').replace(' · '+(h.subName||''),''),pts:h.scale};
+  const a=($('gsa').value||'').trim(),b=($('gsb').value||'').trim();
+  letterOn(s,h,x);
+  if(a!==(h.subName||'')){h.subName=a;Object.assign(h,partOf(x,h));if(h.closed)h.synced=false}
+  const it={id:uid(),kind:'hw',item:h.item,sub:letterFor(s,null,h.item),subName:b,scale:x.pts||'',
+    date:h.date,scores:{},closed:false,synced:false,stack:false};
+  Object.assign(it,partOf(x,it));
+  fillAbsences(s,it);
+  s.items.push(it);V.iid=it.id;V.az=false;V.tab=0;save();
+  closeSheet();go('grade');
 }
 function pickFor(id){
   const s=sec(),h=hwById(id);if(!h)return;
   if(!DOCS[s.course]){V.err='The docs list has not been read on this phone yet.';closeSheet();render();return}
-  PICK=freeFor(s,h);
+  const free=freeFor(s,h),taken=DOCS[s.course].items.filter(x=>!free.includes(x));
+  PICK=free.concat(taken);
+  const btn=(x,j)=>`<button class="rv none" style="margin-top:6px" onclick="linkTo('${h.id}',PICK[${j}])">
+      <span class="who">${esc(x.label)} · ${esc(x.name)}${x.item===h.item?' (now)':''}</span></button>`;
   panel(`<div class="eyebrow">Link ${esc(h.title)} to…</div>
-    ${PICK.map((x,j)=>`<button class="rv none" style="margin-top:6px" onclick="linkTo('${h.id}',PICK[${j}])">
-      <span class="who">${esc(x.label)} · ${esc(x.name)}${x.item===h.item?' (now)':''}</span></button>`).join('')}
+    ${free.map(btn).join('')}
+    ${taken.length?`<div class="meta" style="margin-top:12px">Or as another grade of one already here — it takes the next letter:</div>
+      ${taken.map((x,j)=>btn(x,j+free.length)).join('')}`:''}
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
 function keepTyped(id){const h=hwById(id);if(!h)return;h.typed=true;delete h.lost;save();render()}
@@ -934,7 +996,7 @@ function keepTyped(id){const h=hwById(id);if(!h)return;h.typed=true;delete h.los
 function undoLink(id){
   const h=hwById(id);if(!h)return;
   if(h.item&&h.was){h.code=h.was.code;h.title=h.was.title;h.scale=h.was.scale}
-  ['item','typed','lost','was'].forEach(k=>delete h[k]);
+  ['item','typed','lost','was','sub','subName'].forEach(k=>delete h[k]);
   if(h.closed)h.synced=false;
   save();closeSheet();render();
 }
@@ -1171,6 +1233,8 @@ function editSheet(){
   panel(`<div class="eyebrow">Edit assignment</div><div style="height:9px"></div>
     ${it.item?`<div class="card" style="margin:0"><div class="name">${esc(it.code)} · ${esc(it.title)}</div>
       <div class="meta">From the docs app — change the number or name there, and it follows here.</div>
+      ${it.sub?`<input type="text" id="rsub" value="${esc(it.subName||'')}" placeholder="This grade, e.g. Student email" autocomplete="off" style="margin-top:8px">`:''}
+      <button class="chip quiet" style="margin-top:8px" onclick="addGradeSheet()">Add another grade…</button>
       <div class="row" style="margin-top:8px;gap:6px">
         <button class="chip quiet" style="flex:1" onclick="pickFor('${it.id}')">Change link…</button>
         <button class="chip quiet" style="flex:1" onclick="undoLink('${it.id}')">Unlink</button></div></div>`
@@ -1262,6 +1326,10 @@ async function dropItemNow(){
 }
 function doRename(){
   const s=sec(),it=item(),d=$('rdt').value||it.date;
+  if(it.item&&it.sub&&$('rsub')){
+    const base=it.title.replace(' · '+(it.subName||''),'');
+    it.subName=($('rsub').value||'').trim();it.title=base+(it.subName?' · '+it.subName:'');
+  }
   if(!it.item){
     const t=($('ren').value||'').trim();if(t)it.title=t;
     it.code=($('rcode').value||'').trim();
@@ -2032,12 +2100,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 66';
+const BUILD='2026-10-07 · 67';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-66';
+const SCRIPT_WANTED='hw-67';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
