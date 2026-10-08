@@ -711,7 +711,7 @@ async function readList(course,quiet){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'assignments',course})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     if(!d.ok){if(!quiet){V.err=d.error||'The docs list could not be read.';render()}return false}
     // an older script answers this as an ordinary sync, with a count, not a list
     if(!Array.isArray(d.items)){V.err='The script behind the sheet is older than '+SCRIPT_WANTED+
@@ -875,10 +875,9 @@ VIEWS.link=function(){
        <button class="btn" onclick="readList(sec().course).then(()=>render())">Read it now</button>`;
     bar('');return;
   }
-  const used={};hws(s).forEach(h=>{if(h.item&&!h.lost)used[h.item]=true});
-  const free=L.items.filter(x=>!used[x.item]);
   const todo=hws(s).filter(h=>(!h.item&&!h.typed)||h.lost);
-  LINKS=todo.map(h=>({h,x:suggest(h,free)}));
+  const done=hws(s).filter(h=>!todo.includes(h)).sort((a,b)=>a.date<b.date?1:-1);
+  LINKS=todo.map(h=>({h,x:suggest(h,freeFor(s,h))}));
   const rows=LINKS.map((o,i)=>{const h=o.h,x=o.x,differ=x&&x.label!==h.code;
     return `<div class="student">
       <div class="name">${esc(h.code||'—')} · ${esc(h.title)}</div>
@@ -887,31 +886,58 @@ VIEWS.link=function(){
         :'<div class="meta" style="margin-top:4px">No likely match in the docs app.</div>'}
       <div class="row" style="margin-top:6px;gap:6px">
         ${x?`<button class="chip" style="flex:1" onclick="linkTo(${i},LINKS[${i}].x)">Link</button>`:''}
-        <button class="chip quiet" style="flex:1" onclick="pickFor(${i})">Pick…</button>
-        <button class="chip quiet" style="flex:1" onclick="keepTyped(${i})">Keep typed</button></div>
+        <button class="chip quiet" style="flex:1" onclick="pickFor('${h.id}')">Pick…</button>
+        <button class="chip quiet" style="flex:1" onclick="keepTyped('${h.id}')">Keep typed</button></div>
     </div>`}).join('');
+  // every decision stays reversible: a wrong link is changed or undone here
+  const decided=done.map(h=>`<div class="student">
+      <div class="name">${esc(h.code||'—')} · ${esc(h.title)}</div>
+      <div class="meta">${esc(when(h.date))} · ${h.item?'linked':'kept typed'}</div>
+      <div class="row" style="margin-top:6px;gap:6px">
+        <button class="chip quiet" style="flex:1" onclick="pickFor('${h.id}')">${h.item?'Change…':'Link…'}</button>
+        <button class="chip quiet" style="flex:1" onclick="undoLink('${h.id}')">Undo</button></div>
+    </div>`).join('');
   $('app').innerHTML=head('Link to the docs app',esc(s.name),"go('section')",'Class')+banner()+
     (rows?`<p class="sub">Linking takes the number and name from the docs app, here and in the gradebook.</p>
-      <div class="card">${rows}</div>`:'<div class="empty">Everything here is linked.</div>');
+      <div class="card">${rows}</div>`:'<div class="empty">Nothing left to decide.</div>')+
+    (decided?`<details style="margin-top:14px"><summary class="sub">Already decided — ${done.length}</summary>
+      <div class="card">${decided}</div></details>`:'');
   bar(`<button class="btn ghost" onclick="go('section')">Done</button>`);
 };
-function linkTo(i,x){
-  const o=LINKS[i];if(!o||!x)return;
-  const h=o.h;
+const hwById=id=>hws(sec()).find(h=>h.id===id);
+// the docs items this assignment may take: any not already linked elsewhere in the class
+function freeFor(s,h){
+  const used={};hws(s).forEach(o=>{if(o!==h&&o.item&&!o.lost)used[o.item]=true});
+  return ((DOCS[s.course]||{}).items||[]).filter(x=>!used[x.item]);
+}
+/* What the assignment was before its first link is kept, so Undo can put it
+   back. Linked before build 66, there is nothing kept, and Undo leaves the
+   docs app's number and name as typed text, which can then be edited. */
+function linkTo(id,x){
+  const h=typeof id==='number'?(LINKS[id]||{}).h:hwById(id);if(!h||!x)return;
+  if(!h.item&&!h.was)h.was={code:h.code||'',title:h.title||'',scale:h.scale||''};
   h.item=x.item;h.code=x.label;h.title=x.name;h.scale=x.pts||'';delete h.lost;delete h.typed;
   if(h.closed)h.synced=false;
   save();closeSheet();render();
 }
-function pickFor(i){
-  const s=sec(),L=DOCS[s.course],used={};
-  hws(s).forEach(h=>{if(h.item&&!h.lost)used[h.item]=true});
-  PICK=L.items.filter(x=>!used[x.item]);
-  panel(`<div class="eyebrow">Link ${esc(LINKS[i].h.title)} to…</div>
-    ${PICK.map((x,j)=>`<button class="rv none" style="margin-top:6px" onclick="linkTo(${i},PICK[${j}])">
-      <span class="who">${esc(x.label)} · ${esc(x.name)}</span></button>`).join('')}
+function pickFor(id){
+  const s=sec(),h=hwById(id);if(!h)return;
+  if(!DOCS[s.course]){V.err='The docs list has not been read on this phone yet.';closeSheet();render();return}
+  PICK=freeFor(s,h);
+  panel(`<div class="eyebrow">Link ${esc(h.title)} to…</div>
+    ${PICK.map((x,j)=>`<button class="rv none" style="margin-top:6px" onclick="linkTo('${h.id}',PICK[${j}])">
+      <span class="who">${esc(x.label)} · ${esc(x.name)}${x.item===h.item?' (now)':''}</span></button>`).join('')}
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
-function keepTyped(i){const o=LINKS[i];if(!o)return;o.h.typed=true;delete o.h.lost;save();render()}
+function keepTyped(id){const h=hwById(id);if(!h)return;h.typed=true;delete h.lost;save();render()}
+// back to undecided: the link and "kept typed" both come off, and what was typed returns
+function undoLink(id){
+  const h=hwById(id);if(!h)return;
+  if(h.item&&h.was){h.code=h.was.code;h.title=h.was.title;h.scale=h.was.scale}
+  ['item','typed','lost','was'].forEach(k=>delete h[k]);
+  if(h.closed)h.synced=false;
+  save();closeSheet();render();
+}
 
 /* ============ attendance ============ */
 VIEWS.attendance=function(){
@@ -1144,11 +1170,15 @@ function editSheet(){
   const it=item();
   panel(`<div class="eyebrow">Edit assignment</div><div style="height:9px"></div>
     ${it.item?`<div class="card" style="margin:0"><div class="name">${esc(it.code)} · ${esc(it.title)}</div>
-      <div class="meta">From the docs app — change the number or name there, and it follows here.</div></div>`
+      <div class="meta">From the docs app — change the number or name there, and it follows here.</div>
+      <div class="row" style="margin-top:8px;gap:6px">
+        <button class="chip quiet" style="flex:1" onclick="pickFor('${it.id}')">Change link…</button>
+        <button class="chip quiet" style="flex:1" onclick="undoLink('${it.id}')">Unlink</button></div></div>`
     :`<input type="text" id="rcode" value="${esc(it.code||'')}" placeholder="e.g. 00.E.1" autocomplete="off">
     <div style="height:9px"></div>
     <input type="text" id="ren" value="${esc(it.title)}" autocomplete="off"
-      autocapitalize="words" spellcheck="false">`}
+      autocapitalize="words" spellcheck="false">
+    ${it.kind==='hw'&&sec().course?`<button class="chip quiet" style="margin-top:8px" onclick="pickFor('${it.id}')">Link to the docs app…</button>`:''}`}
     <div style="height:9px"></div>
     <input type="date" id="rdt" value="${esc(it.date)}">
     <button class="btn" onclick="doRename()">Save</button>
@@ -1207,7 +1237,7 @@ async function dropItemNow(){
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({token:c.token,action:'dropItem',section:s.name,
           id:it.id,kind:it.kind,iso:it.date})});
-      const d=heard(await r.json());
+      const d=heard(await readJson(r));
       if(!d.ok){V.busy=null;V.err=(d.error||'The sheet refused it')+' — nothing was deleted.';render();return}
     }catch(e){
       V.busy=null;V.err='Could not reach the sheet — nothing was deleted.';render();return;
@@ -1474,7 +1504,7 @@ async function pullSeats(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'seats',section:s.name})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     V.busy=null;
     if(!d.ok){V.err=d.error||'Could not read the seating chart.';render();return}
     const key=n=>String(n||'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -1524,7 +1554,7 @@ async function pullSeats(){
 function why(e){
   const m=(e&&e.message)||String(e||'');
   if(/load failed|network|fetch|connection|offline/i.test(m))return 'no answer from the network';
-  if(/JSON|Unexpected token|SyntaxError/i.test(m))return 'the script answered with an error page, not data — check the Apps Script deployment is up to date';
+  if(/JSON|Unexpected token|SyntaxError|did not match the expected pattern/i.test(m))return 'the script answered with an error page, not data — check the Apps Script deployment is up to date';
   return m||'no reason given';
 }
 async function pullTitles(){
@@ -1534,7 +1564,7 @@ async function pullTitles(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'titles',section:s.name})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     V.busy=null;
     if(!d.ok){V.err=d.error||'Could not read the headings.';render();return}
     const mine={};hws(s).forEach(h=>mine[h.id]=h);
@@ -1710,7 +1740,7 @@ async function wipeAndRebuild(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'wipe',section:s.name})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     if(!d.ok){V.busy=null;V.err=d.error||'The script refused the request.';render();return}
     s.items.forEach(x=>{if(x.closed)x.synced=false});
     save();
@@ -1886,7 +1916,7 @@ async function syncOne(id,quiet,full){
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({token:c.token,section:s.name,idx:S.sections.indexOf(s),
           students:roster0,items:[]})});
-      const d=heard(await r.json());
+      const d=heard(await readJson(r));
       V.busy=null;
       V.ok=d.ok?'Nothing new to send — sheet refreshed.':(d.error||'The sheet refused the request.');
       if(!d.ok)V.err=V.ok,V.ok=null;
@@ -1927,7 +1957,7 @@ async function syncOne(id,quiet,full){
     try{
       const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify(payload)});
-      const d=heard(await r.json());
+      const d=heard(await readJson(r));
       if(!d.ok){
         // "busy" means another request holds the spreadsheet lock — the script
         // is telling us to wait, not that anything went wrong. Waiting is the
@@ -2002,13 +2032,25 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 65';
+const BUILD='2026-10-07 · 66';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-65';
+const SCRIPT_WANTED='hw-66';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
+/* Read a reply as data, and when it isn't, say what came instead. Google
+   answers some requests with a web page of its own (sign-in, authorization
+   needed, a server error, a network filter's block page) and Safari reports
+   that only as "the string did not match the expected pattern". */
+async function readJson(r){
+  const t=await r.text();
+  try{return JSON.parse(t)}catch(e){
+    const m=t.match(/<title[^>]*>([^<]*)<\/title>/i),name=m?m[1].replace(/\s+/g,' ').trim():'';
+    throw new Error('the script answered with a web page, not data'+(name?' — "'+name.slice(0,80)+'"':'')+
+      (r.status&&r.status!==200?' (status '+r.status+')':''));
+  }
+}
 function heard(d){
   if(d&&typeof d==='object'){
     script=d.version?String(d.version):'older than hw-64';
@@ -2059,7 +2101,7 @@ async function autoBackup(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'backup',blob:backupBlob()})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     if(d.ok&&d.saved){S.cfg.lastBackup=Date.now();S.cfg.backupName=d.saved;saveAll();
       if(V.view==='home'||V.view==='backup')render()}
     // the script answered but saved nothing — that reason is the useful part
@@ -2111,7 +2153,7 @@ async function pushCubbies(){
   try{
     const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:c.token,action:'cubbies',classes})});
-    const d=heard(await r.json());
+    const d=heard(await readJson(r));
     V.busy=null;
     if(!d.ok){V.err=d.error||'The script refused the request.';render();return}
     V.ok=`Cubby list built — ${d.classes} class${d.classes===1?'':'es'}, ${d.students} students.`;
