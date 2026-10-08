@@ -902,13 +902,13 @@ VIEWS.link=function(){
         <button class="chip quiet" style="flex:1" onclick="undoLink('${h.id}')">Undo</button></div>
     </div>`).join('');
   $('app').innerHTML=head('Link to the docs app',esc(s.name),"go('section')",'Class')+banner()+
-    `<div class="row" style="gap:8px;align-items:center;margin-bottom:8px"><div class="meta grow">Docs list read ${esc(when(L.read.slice(0,10)))} ${esc(L.read.slice(11,16))}</div>
-      <button class="chip quiet" style="flex:none" onclick="readList(sec().course).then(()=>render())">Read again</button></div>`+
+    `<div class="meta" style="margin-bottom:8px">Docs list read ${esc(when(L.read.slice(0,10)))} ${esc(L.read.slice(11,16))}</div>`+
     (rows?`<p class="sub">Linking takes the number and name from the docs app, here and in the gradebook.</p>
       <div class="card">${rows}</div>`:'<div class="empty">Nothing left to decide.</div>')+
     (decided?`<details style="margin-top:14px"><summary class="sub">Already decided — ${done.length}</summary>
       <div class="card">${decided}</div></details>`:'');
-  bar(`<button class="btn ghost" onclick="go('section')">Done</button>`);
+  bar(`<div class="grid2"><button class="btn ghost" onclick="readList(sec().course).then(()=>render())">Read again</button>
+    <button class="btn ghost" onclick="go('section')">Done</button></div>`);
 };
 const hwById=id=>hws(sec()).find(h=>h.id===id);
 function openLink(){go('link');readList(sec().course,true).then(ok=>{if(ok&&V.view==='link')render()})}
@@ -2104,12 +2104,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 68';
+const BUILD='2026-10-07 · 69';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-68';
+const SCRIPT_WANTED='hw-69';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
