@@ -911,6 +911,11 @@ VIEWS.link=function(){
     <button class="btn ghost" onclick="go('section')">Done</button></div>`);
 };
 const hwById=id=>hws(sec()).find(h=>h.id===id);
+/* A class's period, from the front of its name: "P1 - APP1" is P1. The docs
+   app's students field says which periods see a file. With no period in the
+   name, or a list from a script before hw-70, everything counts as shared. */
+const classTag=s=>{const m=String(s.name||'').match(/^\s*P\s*([1-7])(?!\d)/i);return m?'P'+m[1]:''};
+const sharedWith=(s,x)=>{const t=classTag(s);return !t||!Array.isArray(x.classes)||x.classes.includes(t)};
 function openLink(){go('link');readList(sec().course,true).then(ok=>{if(ok&&V.view==='link')render()})}
 // the docs items this assignment may take: any not already linked elsewhere in the class
 function freeFor(s,h){
@@ -986,13 +991,17 @@ function pickFor(id){
   const s=sec(),h=hwById(id);if(!h)return;
   if(!DOCS[s.course]){V.err='The docs list has not been read on this phone yet.';closeSheet();render();return}
   const free=freeFor(s,h),taken=DOCS[s.course].items.filter(x=>!free.includes(x));
-  PICK=free.concat(taken);
-  const btn=(x,j)=>`<button class="rv none" style="margin-top:6px" onclick="linkTo('${h.id}',PICK[${j}])">
+  const tag=classTag(s),shown=free.filter(x=>sharedWith(s,x)),unshared=free.filter(x=>!sharedWith(s,x));
+  PICK=shown.concat(unshared,taken);
+  const btn=x=>`<button class="rv none" style="margin-top:6px" onclick="linkTo('${h.id}',PICK[${PICK.indexOf(x)}])">
       <span class="who">${esc(x.label)} · ${esc(x.name)}${x.item===h.item?' (now)':''}</span></button>`;
   panel(`<div class="eyebrow">Link ${esc(h.title)} to…</div>
-    ${free.map(btn).join('')}
+    ${tag?'':`<div class="meta" style="margin-top:6px">This class's name doesn't start with its period, so every document is listed.</div>`}
+    ${shown.map(btn).join('')||`<div class="meta" style="margin-top:6px">Nothing in the docs app is shared with ${esc(tag)} yet.</div>`}
+    ${unshared.length?`<details style="margin-top:12px"><summary class="sub">Not shared with ${esc(tag)} — ${unshared.length}</summary>
+      ${unshared.map(btn).join('')}</details>`:''}
     ${taken.length?`<div class="meta" style="margin-top:12px">Or as another grade of one already here — it takes the next letter:</div>
-      ${taken.map((x,j)=>btn(x,j+free.length)).join('')}`:''}
+      ${taken.map(btn).join('')}`:''}
     <button class="btn ghost sm" onclick="closeSheet()">Cancel</button>`);
 }
 function keepTyped(id){const h=hwById(id);if(!h)return;h.typed=true;delete h.lost;save();render()}
@@ -2104,12 +2113,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-10-07 · 69';
+const BUILD='2026-10-07 · 70';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-69';
+const SCRIPT_WANTED='hw-70';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
