@@ -25,8 +25,9 @@ html,body{max-width:100%;overflow-x:hidden;overscroll-behavior-y:none}
 
 /* --drop: extra room above the title. iOS 26 fades the top of a home-screen
    app a little below the status bar, and the title sat in that fade (Tyler,
-   22 Nov). Raise it if the tops of the letters still look washed out. */
-header{--drop:20px;padding:calc(16px + var(--drop)) 2px 12px;position:sticky;top:0;
+   22 Nov). 20px fixed it; 12px from build 89 to win some room back (23 Nov).
+   Raise it if the tops of the letters look washed out again. */
+header{--drop:12px;padding:calc(16px + var(--drop)) 2px 12px;position:sticky;top:0;
   background:var(--ground);z-index:5;max-width:100%;overflow:hidden}
 .hrow{display:flex;align-items:baseline;gap:9px;max-width:100%}
 .back{flex:none}
@@ -2164,12 +2165,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-11-22 · 88';
+const BUILD='2026-11-23 · 89';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-88';
+const SCRIPT_WANTED='hw-89';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
