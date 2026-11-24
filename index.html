@@ -498,8 +498,11 @@ function owedSince(){
   while(n<OWED_DAYS){d.setDate(d.getDate()-1);const w=d.getDay();if(w>0&&w<6)n++}
   return iso(d.getFullYear(),d.getMonth()+1,d.getDate());
 }
+/* What Clear highlights clears: rescores not yet in Aspen (yellow on the
+   sheet), and assignments made from build 90 not yet in Aspen (a grey heading). */
 function pendingSend(s){
-  let n=0;hws(s).forEach(h=>Object.values(h.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent)n++}));
+  let n=0;hws(s).forEach(h=>{if(h.inAspen===false)n++;
+    Object.values(h.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent)n++})});
   return n;
 }
 function dupes(list){
@@ -658,7 +661,7 @@ VIEWS.section=function(){
        <button class="card tap" onclick="markSentFor('${s.id}')" style="margin:0">
          <div class="row"><div class="name grow">Clear highlights</div>
            <span class="count${pend?'':' zero'}">${pend}</span></div>
-         <div class="meta">clear the regrade highlights</div></button>
+         <div class="meta">once they're in Aspen: new and rescored</div></button>
      </div>`;
   bar(`<button class="btn" onclick="${sess?`V.iid='${sess.id}';go('attendance')`:'newSession()'}">
         ${sess?'Attendance — edit':'Take attendance'}</button>
@@ -872,13 +875,13 @@ function createHw(stack){
   let it;
   if(x){
     it={id:uid(),kind:'hw',item:x.item,title:x.name,code:x.label,scale:x.pts||'',
-      date:d,scores:{},closed:false,synced:false,stack:!!stack};
+      date:d,scores:{},closed:false,synced:false,stack:!!stack,inAspen:false};
   }else{
     const cd=($('scode').value||'').trim();
     // left blank, the assignment goes by its number — the sheet's name cell
     // is left empty rather than repeating it
     const t=($('ttl').value||'').trim()||cd||'HW';
-    it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack,code:cd};
+    it={id:uid(),kind:'hw',title:t,date:d,scores:{},closed:false,synced:false,stack:!!stack,code:cd,inAspen:false};
   }
   V.pick=null;V.typing=false;
   fillAbsences(s,it);
@@ -1030,7 +1033,7 @@ function addGrade(){
   letterOn(s,h,x);
   if(a!==(h.subName||'')){h.subName=a;Object.assign(h,partOf(x,h));if(h.closed)h.synced=false}
   const it={id:uid(),kind:'hw',item:h.item,sub:letterFor(s,null,h.item),subName:b,scale:x.pts||'',
-    date:h.date,scores:{},closed:false,synced:false,stack:false};
+    date:h.date,scores:{},closed:false,synced:false,stack:false,inAspen:false};
   Object.assign(it,partOf(x,it));
   fillAbsences(s,it);
   s.items.push(it);V.iid=it.id;V.az=false;V.tab=0;save();
@@ -1987,7 +1990,7 @@ VIEWS.sync=function(){
      <input type="text" id="tok" placeholder="Token" value="${esc(c.token||'')}" autocomplete="off">
      <button class="btn" style="margin-top:9px" onclick="saveCfg()">Save connection</button>
 
-     ${c.url?`<p class="sub" style="margin-top:22px">${stuck?`${stuck} record${stuck===1?'':'s'} not yet sent — sending and clearing regrade
+     ${c.url?`<p class="sub" style="margin-top:22px">${stuck?`${stuck} record${stuck===1?'':'s'} not yet sent — sending and clearing
          highlights now live on each class's own page.`:'Everything is in the sheet.'}</p>
 
        <p class="sub" style="margin-top:22px">If the sheet's columns ever get out of step —
@@ -2067,7 +2070,7 @@ async function syncOne(id,quiet,full){
   const pack=x=>{
     const o={id:x.id,kind:x.kind,date:x.date,iso:x.date,label:when(x.date)};
     if(x.kind==='session'){o.attendance={};act(s).forEach(st=>o.attendance[kk[st.id]]=x.attendance[st.id]||'P')}
-    else{o.title=nameOnly(x);o.code=x.code||'';o.scores={};
+    else{o.title=nameOnly(x);o.code=x.code||'';o.fresh=x.inAspen===false;o.scores={};
       s.students.forEach(st=>{const v=x.scores[st.id];
         if(v)o.scores[kk[st.id]]={val:v.val,code:v.code,rev:v.rev,sent:!!v.sent}})}
     return o;
@@ -2130,7 +2133,8 @@ async function syncOne(id,quiet,full){
 function markSentFor(id){
   const s=S.sections.find(x=>x.id===id);
   hws(s).forEach(h=>{
-    let hit=false;
+    let hit=h.inAspen===false;
+    if(hit)h.inAspen=true;
     Object.values(h.scores).forEach(v=>{if(v&&v.rev!=null&&!v.sent){v.sent=true;hit=true}});
     if(hit)h.synced=false;
   });
@@ -2165,12 +2169,12 @@ VIEWS.backup=function(){
 const WEEK=7*24*60*60*1000;
 /* Bump on every release. A home-screen app caches its page separately from
    Safari and will happily run an old build for hours, so make it say which. */
-const BUILD='2026-11-23 · 89';
+const BUILD='2026-11-24 · 90';
 /* The Code.gs this build was written against, and the one the sheet last
    answered with. Every reply carries its version from hw-64 on; a reply with
    none is from an older script. Shown beside any error, so a deployment that
    is out of step names itself. */
-const SCRIPT_WANTED='hw-89';
+const SCRIPT_WANTED='hw-90';
 var script=(()=>{try{return localStorage.getItem('hw:script')||''}catch(e){return ''}})();
 /* Read a reply as data, and when it isn't, say what came instead. Google
    answers some requests with a web page of its own (sign-in, authorization
